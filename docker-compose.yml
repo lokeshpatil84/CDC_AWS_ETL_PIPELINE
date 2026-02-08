@@ -1,0 +1,136 @@
+version: '3.8'
+
+# CDC Pipeline - Local Kafka + Debezium
+# Data lands in AWS S3 (not local storage)
+# Run: docker-compose up -d
+
+services:
+  # PostgreSQL - Source database with logical replication
+  postgres:
+    image: postgres:15
+    container_name: cdc-postgres
+    environment:
+      POSTGRES_DB: cdc_demo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./sql/seed_data.sql:/docker-entrypoint-initdb.d/seed_data.sql
+    command: |
+      postgres 
+      -c wal_level=logical 
+      -c max_replication_slots=4 
+      -c max_wal_senders=4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cdc-network
+
+  # Apache Kafka - Self-managed KRaft cluster
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: cdc-kafka
+    ports:
+      - "9092:9092"      # External access
+      - "29092:29092"    # Internal Docker network
+    environment:
+      # KRaft configuration (no Zookeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092,PLAINTEXT_INTERNAL://kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_PROCESS_ROLES: broker,controller
+      
+      # Replication for single-node
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      
+      # Auto topic creation
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      
+      # Data directory
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cdc-network
+
+  # Debezium Connect - CDC connector
+  debezium:
+    image: debezium/connect:2.4
+    container_name: cdc-debezium
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      # Kafka connection
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: debezium-cluster
+      
+      # Internal topics (replication for HA)
+      CONFIG_STORAGE_TOPIC: debezium-configs
+      OFFSET_STORAGE_TOPIC: debezium-offsets
+      STATUS_STORAGE_TOPIC: debezium-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      
+      # JSON converters
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      
+      # Exactly-once delivery
+      CONNECT_EXACTLY_ONCE_SUPPORT: enabled
+      CONNECT_EXACTLY_ONCE_SOURCE_SUPPORT: enabled
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/ || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - cdc-network
+
+  # Kafka UI - Monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: cdc-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - cdc-network
+
+networks:
+  cdc-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  kafka_data:
+

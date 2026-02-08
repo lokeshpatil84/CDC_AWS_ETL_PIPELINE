@@ -1,0 +1,613 @@
+name: CD - Pipeline
+
+on:
+  # Auto-trigger after CI success (PLAN-ONLY, never auto-apply)
+  workflow_run:
+    workflows: ["CI - Code Quality"]
+    types: [completed]
+    branches: [main, dev, staging]
+
+  # Manual trigger (REQUIRED for apply)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+      action:
+        description: 'Action to Perform'
+        required: true
+        type: choice
+        options: [plan-only, deploy, destroy]
+      reason:
+        description: 'Reason for Deployment (Required for prod)'
+        required: false
+        type: string
+
+  # Nightly drift detection
+  schedule:
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: cd-${{ github.workflow }}-${{ github.event.inputs.environment || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.10.0"
+  AWS_REGION: ap-south-1
+  TF_LOCK_TIMEOUT: "300s"
+  PROJECT_NAME: "cdc-pipeline"
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+jobs:
+  # =============================================================================
+  # PRE-CHECK: Validate context and permissions
+  # =============================================================================
+  pre-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    outputs:
+      env: ${{ steps.detect.outputs.env }}
+      bucket: ${{ steps.detect.outputs.bucket }}
+      table: ${{ steps.detect.outputs.table }}
+      aws_access_key_id: ${{ steps.detect.outputs.aws_access_key_id }}
+      aws_secret_access_key: ${{ steps.detect.outputs.aws_secret_access_key }}
+      is_manual: ${{ steps.detect.outputs.is_manual }}
+      action: ${{ steps.detect.outputs.action }}
+      should_apply: ${{ steps.detect.outputs.should_apply }}
+      drift_check: ${{ steps.detect.outputs.drift_check }}
+
+    steps:
+      - name: Detect Context & Environment
+        id: detect
+        run: |
+          set -euo pipefail
+          
+          IS_MANUAL="false"
+          DRIFT_CHECK="false"
+          ACTION="plan-only"
+          SHOULD_APPLY="false"
+          
+          # Determine trigger type and environment
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IS_MANUAL="true"
+            ENV="${{ github.event.inputs.environment }}"
+            ACTION="${{ github.event.inputs.action }}"
+            
+            # Validate environment
+            if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
+              echo "::error::Invalid environment: $ENV"
+              exit 1
+            fi
+            
+            # Require reason for production
+            if [ "$ENV" = "prod" ] && [ -z "${{ github.event.inputs.reason }}" ]; then
+              echo "::error::Production deployments require a reason"
+              exit 1
+            fi
+            
+            # Set apply flag (ONLY for manual deploy)
+            if [ "$ACTION" = "deploy" ]; then
+              SHOULD_APPLY="true"
+            fi
+            
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            DRIFT_CHECK="true"
+            ENV="prod"
+            ACTION="plan-only"
+            
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Auto-trigger from CI - PLAN ONLY, never apply
+            ENV="${{ github.event.workflow_run.head_branch }}"
+            ACTION="plan-only"
+            SHOULD_APPLY="false"
+            
+            # Map branch to environment
+            case "$ENV" in
+              dev) ENV="dev" ;;
+              staging) ENV="staging" ;;
+              main|master) ENV="prod" ;;
+              *) 
+                echo "::warning::Unknown branch '$ENV', defaulting to dev"
+                ENV="dev"
+                ;;
+            esac
+            
+            # CRITICAL: Verify CI passed
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "::error::CI workflow failed or was cancelled"
+              exit 1
+            fi
+            
+          else
+            echo "::error::Unknown trigger type"
+            exit 1
+          fi
+          
+          # Set AWS credentials keys (actual values in secrets)
+          case "$ENV" in
+            dev)
+              ACCESS_KEY="AWS_DEV_ACCESS_KEY_ID"
+              SECRET_KEY="AWS_DEV_SECRET_ACCESS_KEY"
+              ;;
+            staging)
+              ACCESS_KEY="AWS_STAGING_ACCESS_KEY_ID"
+              SECRET_KEY="AWS_STAGING_SECRET_ACCESS_KEY"
+              ;;
+            prod)
+              ACCESS_KEY="AWS_PROD_ACCESS_KEY_ID"
+              SECRET_KEY="AWS_PROD_SECRET_ACCESS_KEY"
+              ;;
+          esac
+          
+          # Export outputs
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+          echo "bucket=${PROJECT_NAME}-tfstate-${ENV}" >> $GITHUB_OUTPUT
+          echo "table=${PROJECT_NAME}-terraform-lock-${ENV}" >> $GITHUB_OUTPUT
+          echo "aws_access_key_id=$ACCESS_KEY" >> $GITHUB_OUTPUT
+          echo "aws_secret_access_key=$SECRET_KEY" >> $GITHUB_OUTPUT
+          echo "is_manual=$IS_MANUAL" >> $GITHUB_OUTPUT
+          echo "action=$ACTION" >> $GITHUB_OUTPUT
+          echo "should_apply=$SHOULD_APPLY" >> $GITHUB_OUTPUT
+          echo "drift_check=$DRIFT_CHECK" >> $GITHUB_OUTPUT
+          
+          echo "=========================================="
+          echo "Deployment Context"
+          echo "=========================================="
+          echo "Environment:     $ENV"
+          echo "Action:          $ACTION"
+          echo "Should Apply:    $SHOULD_APPLY"
+          echo "Manual Trigger:  $IS_MANUAL"
+          echo "Drift Check:     $DRIFT_CHECK"
+          echo "S3 Bucket:       ${PROJECT_NAME}-tfstate-${ENV}"
+          echo "DynamoDB Table:  ${PROJECT_NAME}-terraform-lock-${ENV}"
+          echo "=========================================="
+
+  # =============================================================================
+  # BOOTSTRAP: Create S3 bucket and DynamoDB table for Terraform state
+  # =============================================================================
+  terraform-bootstrap:
+    needs: pre-check
+    runs-on: ubuntu-latest
+    if: |
+      needs.pre-check.outputs.drift_check != 'true' &&
+      needs.pre-check.outputs.action != 'destroy'
+    timeout-minutes: 10
+    
+    outputs:
+      bootstrapped: ${{ steps.check.outputs.bootstrapped }}
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[needs.pre-check.outputs.aws_access_key_id] }}
+          aws-secret-access-key: ${{ secrets[needs.pre-check.outputs.aws_secret_access_key] }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check Existing Backend Resources
+        id: check
+        run: |
+          BUCKET="${{ needs.pre-check.outputs.bucket }}"
+          TABLE="${{ needs.pre-check.outputs.table }}"
+          
+          BUCKET_EXISTS="false"
+          TABLE_EXISTS="false"
+          
+          # Check S3 bucket
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "✓ S3 bucket exists: $BUCKET"
+            BUCKET_EXISTS="true"
+          else
+            echo "ℹ S3 bucket missing: $BUCKET"
+          fi
+          
+          # Check DynamoDB table
+          if aws dynamodb describe-table --table-name "$TABLE" --region ${{ env.AWS_REGION }} 2>/dev/null >/dev/null; then
+            echo "✓ DynamoDB table exists: $TABLE"
+            TABLE_EXISTS="true"
+          else
+            echo "ℹ DynamoDB table missing: $TABLE"
+          fi
+          
+          if [ "$BUCKET_EXISTS" = "true" ] && [ "$TABLE_EXISTS" = "true" ]; then
+            echo "bootstrapped=true" >> $GITHUB_OUTPUT
+            echo "✓ Backend resources already exist"
+          else
+            echo "bootstrapped=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout Repository
+        if: steps.check.outputs.bootstrapped == 'false'
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        if: steps.check.outputs.bootstrapped == 'false'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Bootstrap Terraform Backend
+        if: steps.check.outputs.bootstrapped == 'false'
+        working-directory: terraform-bootstrap
+        run: |
+          ENV="${{ needs.pre-check.outputs.env }}"
+          
+          terraform init -input=false
+          
+          terraform plan \
+            -out=tfplan-bootstrap \
+            -var="environment=$ENV" \
+            -var="bucket_name=${{ needs.pre-check.outputs.bucket }}" \
+            -var="dynamodb_table_name=${{ needs.pre-check.outputs.table }}" \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -var="project_name=${{ env.PROJECT_NAME }}"
+          
+          terraform apply -auto-approve tfplan-bootstrap
+          
+          echo "✓ Backend resources created"
+
+      - name: Wait for AWS Propagation
+        if: steps.check.outputs.bootstrapped == 'false'
+        run: |
+          BUCKET="${{ needs.pre-check.outputs.bucket }}"
+          for i in {1..6}; do
+            if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+              echo "✓ Bucket confirmed ready"
+              exit 0
+            fi
+            echo "Waiting for bucket... attempt $i/6"
+            sleep 10
+          done
+          echo "::error::Timeout waiting for bucket"
+          exit 1
+
+  # =============================================================================
+  # PLAN: Generate Terraform plan
+  # =============================================================================
+  terraform-plan:
+    needs: [pre-check, terraform-bootstrap]
+    runs-on: ubuntu-latest
+    if: needs.pre-check.outputs.action != 'destroy'
+    timeout-minutes: 30
+    
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+      plan_id: ${{ steps.plan.outputs.plan_id }}
+      drift_detected: ${{ steps.plan.outputs.drift_detected }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[needs.pre-check.outputs.aws_access_key_id] }}
+          aws-secret-access-key: ${{ secrets[needs.pre-check.outputs.aws_secret_access_key] }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ needs.pre-check.outputs.bucket }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ needs.pre-check.outputs.table }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="kms_key_id=alias/aws/s3" \
+            -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform
+        run: |
+          ENV="${{ needs.pre-check.outputs.env }}"
+          IS_DRIFT="${{ needs.pre-check.outputs.drift_check }}"
+          PLAN_ID="tfplan-${ENV}-${{ github.run_id }}"
+          
+          set +e
+          terraform plan \
+            -out=${PLAN_ID} \
+            -var="environment=${ENV}" \
+            -var="project_name=${{ env.PROJECT_NAME }}" \
+            -var="public_key=${{ secrets.SSH_PUBLIC_KEY }}" \
+            -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} \
+            -detailed-exitcode 2>&1 | tee plan_output.log
+          
+          EXIT_CODE=$?
+          set -e
+          
+          # Sanitize logs (remove sensitive values)
+          sed -i 's/[0-9a-fA-F]\{32,\}/****REDACTED****/g' plan_output.log || true
+          
+          case $EXIT_CODE in
+            0)
+              echo "ℹ No changes detected"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "drift_detected=false" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              echo "::error::Plan failed"
+              cat plan_output.log
+              exit 1
+              ;;
+            2)
+              echo "✓ Changes detected"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "plan_id=${PLAN_ID}" >> $GITHUB_OUTPUT
+              
+              if [ "$IS_DRIFT" = "true" ]; then
+                echo "drift_detected=true" >> $GITHUB_OUTPUT
+                echo "::warning::INFRASTRUCTURE DRIFT DETECTED!"
+              else
+                echo "drift_detected=false" >> $GITHUB_OUTPUT
+              fi
+              
+              terraform show -no-color ${PLAN_ID} > plan_summary.txt
+              ;;
+          esac
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan_summary.txt', 'utf8').substring(0, 65000);
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan (${{ needs.pre-check.outputs.env }})\n\`\`\`\n${plan}\n\`\`\``
+            });
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.plan.outputs.plan_id }}
+          path: |
+            terraform/${{ steps.plan.outputs.plan_id }}
+            terraform/plan_summary.txt
+          retention-days: 5
+
+      - name: Fail on Drift
+        if: steps.plan.outputs.drift_detected == 'true'
+        run: |
+          echo "::error::Scheduled drift check detected changes!"
+          echo "Manual review required"
+          exit 1
+
+  # =============================================================================
+  # APPLY: Deploy infrastructure (MANUAL ONLY)
+  # =============================================================================
+  terraform-apply:
+    needs: [terraform-plan, pre-check]
+    runs-on: ubuntu-latest
+    # CRITICAL SECURITY FIX: Only apply on manual workflow_dispatch with action=deploy
+    if: |
+      needs.pre-check.outputs.should_apply == 'true' &&
+      needs.terraform-plan.outputs.has_changes == 'true' &&
+      needs.pre-check.outputs.drift_check != 'true'
+    timeout-minutes: 45
+    
+    environment:
+      name: ${{ needs.pre-check.outputs.env }}
+      url: ${{ steps.outputs.outputs.service_url }}
+
+    steps:
+      - name: Deployment Approval Check
+        run: |
+          echo "=========================================="
+          echo "DEPLOYMENT APPROVED"
+          echo "=========================================="
+          echo "Environment: ${{ needs.pre-check.outputs.env }}"
+          echo "Approved by: ${{ github.actor }}"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+          echo "=========================================="
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[needs.pre-check.outputs.aws_access_key_id] }}
+          aws-secret-access-key: ${{ secrets[needs.pre-check.outputs.aws_secret_access_key] }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ needs.pre-check.outputs.bucket }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ needs.pre-check.outputs.table }}" \
+            -backend-config="encrypt=true" \
+            -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
+
+      - name: Backup State
+        working-directory: terraform
+        run: |
+          terraform state pull > "state-backup-${{ github.run_id }}.json"
+          echo "✓ State backup created"
+
+      - name: Upload State Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-backup-${{ needs.pre-check.outputs.env }}-${{ github.run_id }}
+          path: terraform/state-backup-*.json
+          retention-days: 30
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.terraform-plan.outputs.plan_id }}
+          path: terraform
+
+      - name: Terraform Apply
+        id: apply
+        working-directory: terraform
+        run: |
+          PLAN="${{ needs.terraform-plan.outputs.plan_id }}"
+          echo "Applying plan: $PLAN"
+          terraform apply -auto-approve -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} "$PLAN"
+
+      - name: Capture Outputs
+        id: outputs
+        working-directory: terraform
+        run: |
+          echo "service_url=$(terraform output -raw service_url 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "db_endpoint=$(terraform output -raw database_endpoint 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+
+      - name: Deployment Success
+        run: |
+          echo "::notice::Deployment to ${{ needs.pre-check.outputs.env }} successful!"
+
+  # =============================================================================
+  # DESTROY: Destroy infrastructure (BLOCKED on prod)
+  # =============================================================================
+  terraform-destroy:
+    needs: pre-check
+    if: needs.pre-check.outputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Block Production Destroy
+        if: needs.pre-check.outputs.env == 'prod'
+        run: |
+          echo "::error::PRODUCTION DESTROY BLOCKED"
+          echo "This action requires manual break-glass procedure"
+          exit 1
+
+      - name: Destroy Warning
+        run: |
+          echo "=========================================="
+          echo "DESTROYING INFRASTRUCTURE"
+          echo "=========================================="
+          echo "Environment: ${{ needs.pre-check.outputs.env }}"
+          echo "This is IRREVERSIBLE!"
+          echo "=========================================="
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[needs.pre-check.outputs.aws_access_key_id] }}
+          aws-secret-access-key: ${{ secrets[needs.pre-check.outputs.aws_secret_access_key] }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ needs.pre-check.outputs.bucket }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ needs.pre-check.outputs.table }}" \
+            -backend-config="encrypt=true" \
+            -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
+
+      - name: Backup State Before Destroy
+        working-directory: terraform
+        run: |
+          terraform state pull > "state-before-destroy-${{ github.run_id }}.json"
+
+      - name: Upload Pre-Destroy State
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-before-destroy-${{ needs.pre-check.outputs.env }}-${{ github.run_id }}
+          path: terraform/state-before-destroy-*.json
+          retention-days: 90
+
+      - name: Terraform Destroy
+        working-directory: terraform
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -var="environment=${{ needs.pre-check.outputs.env }}" \
+            -var="project_name=${{ env.PROJECT_NAME }}" \
+            -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
+
+  # =============================================================================
+  # NOTIFICATION: Status summary
+  # =============================================================================
+  notify:
+    needs: [pre-check, terraform-plan, terraform-apply]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Determine Final Status
+        id: status
+        run: |
+          ENV="${{ needs.pre-check.outputs.env }}"
+          TRIGGER="${{ github.event_name }}"
+          
+          if [ "${{ needs.terraform-apply.result }}" = "success" ]; then
+            STATUS="✅ DEPLOYED"
+            MESSAGE="Infrastructure deployed successfully to $ENV"
+          elif [ "${{ needs.terraform-apply.result }}" = "failure" ]; then
+            STATUS="❌ FAILED"
+            MESSAGE="Deployment to $ENV failed"
+          elif [ "${{ needs.terraform-plan.result }}" = "success" ] && [ "${{ needs.terraform-plan.outputs.has_changes }}" = "true" ]; then
+            STATUS="📋 PLAN READY"
+            MESSAGE="Plan generated for $ENV - manual apply required"
+          elif [ "${{ needs.terraform-plan.result }}" = "success" ]; then
+            STATUS="✅ NO CHANGES"
+            MESSAGE="Infrastructure up to date in $ENV"
+          else
+            STATUS="⚠️ UNKNOWN"
+            MESSAGE="Check workflow logs"
+          fi
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+
+      - name: Send Notification
+        run: |
+          echo "=========================================="
+          echo "${{ steps.status.outputs.status }}"
+          echo "=========================================="
+          echo "${{ steps.status.outputs.message }}"
+          echo "Environment: ${{ needs.pre-check.outputs.env }}"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "=========================================="
+          
+          # Add instructions based on trigger
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo ""
+            echo "This was an AUTO-TRIGGER (CI success)"
+            echo "To apply changes:"
+            echo "1. Go to Actions → CD - Pipeline"
+            echo "2. Click 'Run workflow'"
+            echo "3. Select environment: ${{ needs.pre-check.outputs.env }}"
+            echo "4. Select action: deploy"
+            echo "5. Enter reason and run"
+          fi

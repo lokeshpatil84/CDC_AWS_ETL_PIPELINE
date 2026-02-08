@@ -1,0 +1,69 @@
+# ============================================================
+# Production Environment Variables
+# ============================================================
+# WARNING: This file contains production-grade settings
+# Review carefully before applying
+# ============================================================
+
+environment = "prod"
+aws_region = "ap-south-1"
+project_name = "cdc-pipeline"
+bucket_prefix = "cdc-pipeline-prod"
+athena_database = "cdc_prod"
+
+# ============================================================
+# Production Infrastructure Settings
+# ============================================================
+
+# Larger instance classes for production
+db_instance_class    = "db.t3.medium"  # Upgraded from dev
+kafka_instance_type  = "t3.medium"     # Upgraded from dev
+ecs_cpu              = 512             # Increased capacity
+ecs_memory           = 1024            # Increased capacity
+ecs_desired_count    = 2               # High availability
+
+# Production Kafka settings
+kafka_ebs_volume_size = 100           # Larger storage
+glue_worker_type      = "G.2X"         # More powerful workers
+glue_number_of_workers = 4            # Parallel processing
+glue_job_timeout      = 120           # Longer timeout
+
+# Production cost monitoring
+cost_threshold       = 200             # Higher threshold for prod
+
+# Production email alerts
+alert_email          = "prod-alerts@yourcompany.com"
+
+# ============================================================
+# Security Settings (Production)
+# ============================================================
+
+# SSH Public Key for Kafka EC2 access
+# IMPORTANT: Use a secure key pair for production
+public_key = ""  # Must be set before deployment
+
+# Database security
+# Use Secrets Manager in production (recommended)
+# Override these with GitHub Secrets for production
+db_username = ""  # Set via TF_VAR_db_username
+db_password = ""  # Set via TF_VAR_db_password (use Secrets Manager!)
+
+# ============================================================
+# Production Tags
+# ============================================================
+
+tags = {
+  Project     = "cdc-pipeline"
+  Environment = "prod"
+  ManagedBy   = "terraform"
+  Owner       = "data-engineering-team"
+  CostCenter  = "engineering-prod"
+  Compliance  = "SOC2"
+}
+
+# ============================================================
+# S3 Lifecycle (Longer retention for production)
+# ============================================================
+
+s3_lifecycle_expiration_days = 730  # 2 years for audit
+

@@ -1,0 +1,27 @@
+[Unit]
+Description=Apache Kafka
+Documentation=http://kafka.apache.org/documentation.html
+After=network.target
+
+[Service]
+Type=simple
+User=kafka
+Group=kafka
+ExecStart=/opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/kraft/server.properties
+ExecStop=/opt/kafka/bin/kafka-server-stop.sh
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+
+# JVM settings
+Environment="JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"
+Environment="KAFKA_HEAP_OPTS=-Xmx2G -Xms1G"
+Environment="KAFKA_JVM_PERFORMANCE_OPTS=-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:+ParallelRefProcEnabled -XX:+AlwaysPreTouch"
+
+# Logging
+StandardOutput=append:/var/log/kafka/stdout.log
+StandardError=append:/var/log/kafka/stderr.log
+
+[Install]
+WantedBy=multi-user.target
+

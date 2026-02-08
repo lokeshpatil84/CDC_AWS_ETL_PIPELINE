@@ -1,0 +1,7 @@
+# Development environment for bootstrap Terraform
+aws_region              = "ap-south-1"
+project_name            = "cdc-pipeline"
+environment             = "dev"
+bucket_name             = "cdc-pipeline-tfstate-dev"
+dynamodb_table_name     = "cdc-pipeline-terraform-lock-dev"
+

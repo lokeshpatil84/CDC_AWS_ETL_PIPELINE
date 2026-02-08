@@ -1,0 +1,7 @@
+# Production environment for bootstrap Terraform
+aws_region              = "ap-south-1"
+project_name            = "cdc-pipeline"
+environment             = "prod"
+bucket_name             = "cdc-pipeline-tfstate-prod"
+dynamodb_table_name     = "cdc-pipeline-terraform-lock-prod"
+

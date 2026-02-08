@@ -1,0 +1,53 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.plan
+*.backup
+.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+.env
+
+# AWS
+.aws/
+credentials
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local
+.local/
+.temp/
+tmp/
+
+# Editor
+*.sublime-*
+
+# Secrets
+*.pem
+*.key
+*.crt
+
