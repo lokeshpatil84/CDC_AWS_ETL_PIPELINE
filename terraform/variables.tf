@@ -56,11 +56,6 @@ variable "db_port" {
   default = 5432
 }
 
-variable "db_host" {
-  type    = string
-  default = ""
-}
-
 variable "ecs_cpu" {
   type    = number
   default = 256
@@ -69,11 +64,6 @@ variable "ecs_cpu" {
 variable "ecs_memory" {
   type    = number
   default = 512
-}
-
-variable "ecs_desired_count" {
-  type    = number
-  default = 1
 }
 
 variable "kafka_instance_type" {
@@ -150,18 +140,6 @@ variable "tags" {
 variable "s3_lifecycle_expiration_days" {
   type    = number
   default = 365
-}
-
-variable "bucket_prefix" {
-  description = "S3 bucket prefix for naming convention"
-  type        = string
-  default     = "cdc-pipeline-dev"
-}
-
-variable "athena_database" {
-  description = "Athena database name for query results"
-  type        = string
-  default     = "cdc_dev"
 }
 
 variable "ssh_cidr_blocks" {

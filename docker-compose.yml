@@ -20,9 +20,9 @@ services:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./sql/seed_data.sql:/docker-entrypoint-initdb.d/seed_data.sql
     command: |
-      postgres 
-      -c wal_level=logical 
-      -c max_replication_slots=4 
+      postgres
+      -c wal_level=logical
+      -c max_replication_slots=4
       -c max_wal_senders=4
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_demo"]
@@ -37,33 +37,37 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: cdc-kafka
     ports:
-      - "9092:9092"      # External access
-      - "29092:29092"    # Internal Docker network
+      - "9092:9092"  # External access
+      - "29092:29092"  # Internal Docker network
     environment:
       # KRaft configuration (no Zookeeper)
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
+        CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,
+        PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092,PLAINTEXT_INTERNAL://kafka:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_PROCESS_ROLES: broker,controller
-      
+
       # Replication for single-node
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      
+
       # Auto topic creation
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      
+
       # Data directory
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      test:
+        - CMD-SHELL
+        - kafka-broker-api-versions --bootstrap-server localhost:9092
       interval: 10s
       timeout: 5s
       retries: 10
@@ -85,7 +89,7 @@ services:
       # Kafka connection
       BOOTSTRAP_SERVERS: kafka:29092
       GROUP_ID: debezium-cluster
-      
+
       # Internal topics (replication for HA)
       CONFIG_STORAGE_TOPIC: debezium-configs
       OFFSET_STORAGE_TOPIC: debezium-offsets
@@ -93,13 +97,13 @@ services:
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      
+
       # JSON converters
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-      
+
       # Exactly-once delivery
       CONNECT_EXACTLY_ONCE_SUPPORT: enabled
       CONNECT_EXACTLY_ONCE_SOURCE_SUPPORT: enabled
@@ -133,4 +137,3 @@ networks:
 volumes:
   postgres_data:
   kafka_data:
-
