@@ -118,11 +118,11 @@ class DebeziumConnectorManager:
                 timeout=60,
             )
             response.raise_for_status()
-            print(f"✓ Connector '{connector_name}' created successfully!")
+            print(f"Connector '{connector_name}' created successfully!")
             return True
 
         except requests.RequestException as e:
-            print(f"✗ Error creating connector: {e}")
+            print(f"Error creating connector: {e}")
             if hasattr(e, "response") and e.response is not None:
                 print(f"Response: {e.response.text}")
             return False
@@ -134,10 +134,10 @@ class DebeziumConnectorManager:
                 f"{self.connect_url}/connectors/{connector_name}", timeout=30
             )
             response.raise_for_status()
-            print(f"✓ Connector '{connector_name}' deleted!")
+            print(f"Connector '{connector_name}' deleted!")
             return True
         except requests.RequestException as e:
-            print(f"✗ Error deleting: {e}")
+            print(f"Error deleting: {e}")
             return False
 
     def pause_connector(self, connector_name: str) -> bool:
@@ -147,10 +147,10 @@ class DebeziumConnectorManager:
                 f"{self.connect_url}/connectors/{connector_name}/pause", timeout=30
             )
             response.raise_for_status()
-            print(f"✓ Connector '{connector_name}' paused!")
+            print(f"Connector '{connector_name}' paused!")
             return True
         except requests.RequestException as e:
-            print(f"✗ Error pausing: {e}")
+            print(f"Error pausing: {e}")
             return False
 
     def resume_connector(self, connector_name: str) -> bool:
@@ -160,10 +160,10 @@ class DebeziumConnectorManager:
                 f"{self.connect_url}/connectors/{connector_name}/resume", timeout=30
             )
             response.raise_for_status()
-            print(f"✓ Connector '{connector_name}' resumed!")
+            print(f"Connector '{connector_name}' resumed!")
             return True
         except requests.RequestException as e:
-            print(f"✗ Error resuming: {e}")
+            print(f"Error resuming: {e}")
             return False
 
     def restart_connector(self, connector_name: str) -> bool:
@@ -173,10 +173,10 @@ class DebeziumConnectorManager:
                 f"{self.connect_url}/connectors/{connector_name}/restart", timeout=30
             )
             response.raise_for_status()
-            print(f"✓ Connector '{connector_name}' restart initiated!")
+            print(f"Connector '{connector_name}' restart initiated!")
             return True
         except requests.RequestException as e:
-            print(f"✗ Error restarting: {e}")
+            print(f"Error restarting: {e}")
             return False
 
     def restart_task(self, connector_name: str, task_id: int) -> bool:
@@ -187,10 +187,10 @@ class DebeziumConnectorManager:
                 timeout=30,
             )
             response.raise_for_status()
-            print(f"✓ Task {task_id} restarted!")
+            print(f"Task {task_id} restarted!")
             return True
         except requests.RequestException as e:
-            print(f"✗ Error restarting task: {e}")
+            print(f"Error restarting task: {e}")
             return False
 
     def get_connector_topics(self, connector_name: str) -> List[str]:
@@ -214,12 +214,12 @@ def setup_local():
     print("Waiting for Debezium Connect...")
     for i in range(30):
         if manager.health_check():
-            print("✓ Debezium Connect is ready!")
+            print("Debezium Connect is ready!")
             break
         time.sleep(2)
         print(f"  Retry {i+1}/30...")
     else:
-        print("✗ Debezium Connect not available")
+        print("Debezium Connect not available")
         sys.exit(1)
 
     # Check existing

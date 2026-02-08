@@ -78,7 +78,7 @@ default_args = {
 dag = DAG(
     dag_id=f"{PROJECT_NAME}_{ENVIRONMENT}_orchestration",
     default_args=default_args,
-    description="CDC Pipeline: Kafka → Bronze → Silver → Gold",
+    description="CDC Pipeline: Kafka -> Bronze -> Silver -> Gold",
     schedule_interval=timedelta(hours=1),
     catchup=False,
     max_active_runs=1,
@@ -88,9 +88,9 @@ dag = DAG(
     ## Flow
     1. Health Checks (Kafka + Debezium)
     2. Setup/Verify Debezium Connectors
-    3. Run Bronze→Silver Glue Job (SCD Type 2)
+    3. Run Bronze->Silver Glue Job (SCD Type 2)
     4. Data Quality Checks
-    5. Run Silver→Gold Glue Job (Aggregations)
+    5. Run Silver->Gold Glue Job (Aggregations)
     6. Notifications
     
     ## Terraform Dependencies
@@ -147,13 +147,13 @@ def check_kafka_health(**context):
 
                 if result == 0:
                     healthy_brokers.append(broker)
-                    logger.info(f"✓ Broker {broker} is reachable")
+                    logger.info(f"Broker {broker} is reachable")
                 else:
                     logger.warning(
-                        f"✗ Broker {broker} connection failed (code: {result})"
+                        f"Broker {broker} connection failed (code: {result})"
                     )
             except Exception as e:
-                logger.warning(f"✗ Broker {broker} error: {str(e)}")
+                logger.warning(f"Broker {broker} error: {str(e)}")
 
         if not healthy_brokers:
             raise AirflowFailException("No Kafka brokers reachable")
@@ -187,7 +187,7 @@ def check_debezium_health(**context):
         # Check Connect REST API health
         r = session.get(f"{DEBEZIUM_CONNECT_URL}/", timeout=10)
         r.raise_for_status()
-        logger.info("✓ Debezium Connect REST API is up")
+        logger.info("Debezium Connect REST API is up")
 
         # Get list of connectors
         r = session.get(f"{DEBEZIUM_CONNECT_URL}/connectors", timeout=10)
@@ -238,7 +238,7 @@ def check_debezium_health(**context):
                 f"Failed/unhealthy connectors: {failed_connectors}"
             )
 
-        logger.info("✓ All Debezium connectors healthy")
+        logger.info("All Debezium connectors healthy")
         return True
 
     except requests.RequestException as e:
@@ -334,7 +334,7 @@ def setup_debezium_connector(**context):
                 timeout=60,
             )
             r.raise_for_status()
-            logger.info(f"✓ Connector '{connector_name}' created successfully")
+            logger.info(f"Connector '{connector_name}' created successfully")
 
         # Push connector name to XCom
         context["ti"].xcom_push(key="connector_name", value=connector_name)
@@ -390,7 +390,7 @@ def monitor_data_quality(**context):
             logger.warning(f"Found {metrics['failed_tasks']} failed tasks")
             # Could add logic to restart tasks here
 
-        logger.info("✓ Data quality check passed")
+        logger.info("Data quality check passed")
         logger.info(f"Metrics: {json.dumps(metrics, indent=2)}")
 
         return metrics
@@ -427,7 +427,7 @@ def cleanup_on_failure(**context):
 
 # =============================================================================
 # TASK DEFINITIONS
-# =============================================================================
+# ==============================================================================
 
 # -----------------------------------------------------------------------------
 # Phase 1: Health Checks

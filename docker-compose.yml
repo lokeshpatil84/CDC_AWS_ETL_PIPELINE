@@ -37,10 +37,9 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: cdc-kafka
     ports:
-      - "9092:9092"  # External access
-      - "29092:29092"  # Internal Docker network
+      - "9092:9092"
+      - "29092:29092"
     environment:
-      # KRaft configuration (no Zookeeper)
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
         CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,
@@ -50,16 +49,10 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_PROCESS_ROLES: broker,controller
-
-      # Replication for single-node
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-
-      # Auto topic creation
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-
-      # Data directory
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
@@ -86,25 +79,18 @@ services:
     ports:
       - "8083:8083"
     environment:
-      # Kafka connection
       BOOTSTRAP_SERVERS: kafka:29092
       GROUP_ID: debezium-cluster
-
-      # Internal topics (replication for HA)
       CONFIG_STORAGE_TOPIC: debezium-configs
       OFFSET_STORAGE_TOPIC: debezium-offsets
       STATUS_STORAGE_TOPIC: debezium-status
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-
-      # JSON converters
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-
-      # Exactly-once delivery
       CONNECT_EXACTLY_ONCE_SUPPORT: enabled
       CONNECT_EXACTLY_ONCE_SOURCE_SUPPORT: enabled
     healthcheck:
@@ -137,3 +123,4 @@ networks:
 volumes:
   postgres_data:
   kafka_data:
+
