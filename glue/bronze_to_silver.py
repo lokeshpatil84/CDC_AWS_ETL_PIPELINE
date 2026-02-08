@@ -4,12 +4,13 @@ Reads from S3 Bronze, applies SCD Type 2, writes to S3 Silver
 Fits with: module.glue (Glue jobs), module.s3 (bucket)
 """
 
-import sys
 import logging
-from awsglue.utils import getResolvedOptions
-from pyspark.context import SparkContext
+import sys
+
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
 from pyspark.sql.functions import *
 from pyspark.sql.window import Window
 

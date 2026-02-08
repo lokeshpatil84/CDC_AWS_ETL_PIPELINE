@@ -4,12 +4,13 @@ Business aggregations on S3 Silver → S3 Gold
 Fits with: module.glue, module.s3
 """
 
-import sys
 import logging
-from awsglue.utils import getResolvedOptions
-from pyspark.context import SparkContext
+import sys
+
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
 from pyspark.sql.functions import *
 from pyspark.sql.window import Window
 

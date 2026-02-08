@@ -3,18 +3,20 @@ CDC Pipeline Orchestration DAG
 Fits with: module.airflow (MWAA/EC2), module.glue (Glue jobs), module.kafka, module.s3
 """
 
+import json
+import os
 from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.providers.amazon.aws.operators.glue import GlueJobOperator
-from airflow.providers.amazon.aws.sensors.glue import GlueJobSensor
-from airflow.providers.amazon.aws.operators.sns import SnsPublishOperator
-from airflow.operators.python import PythonOperator
-from airflow.utils.trigger_rule import TriggerRule
-from airflow.exceptions import AirflowFailException
+
 import boto3
 import requests
-import os
-import json
+from airflow.exceptions import AirflowFailException
+from airflow.operators.python import PythonOperator
+from airflow.providers.amazon.aws.operators.glue import GlueJobOperator
+from airflow.providers.amazon.aws.operators.sns import SnsPublishOperator
+from airflow.providers.amazon.aws.sensors.glue import GlueJobSensor
+from airflow.utils.trigger_rule import TriggerRule
+
+from airflow import DAG
 
 # =============================================================================
 # CONFIGURATION (from Terraform/Environment)

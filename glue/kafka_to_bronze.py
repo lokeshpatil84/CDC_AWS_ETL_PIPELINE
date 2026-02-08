@@ -3,12 +3,12 @@ Kafka (Self-Managed on EC2) → S3 Bronze (Iceberg)
 Fits with: module.kafka (EC2 instance), module.s3 (bucket), module.ecs (Debezium)
 """
 
-import os
 import logging
+import os
 import sys
 from typing import Dict, List
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 

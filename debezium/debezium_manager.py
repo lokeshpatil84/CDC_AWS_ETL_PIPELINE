@@ -5,11 +5,12 @@ Fits with: module.ecs (Debezium running in ECS), aws_db_instance.postgres
 """
 
 import json
-import requests
-import sys
 import os
+import sys
 import time
 from typing import Dict, List, Optional
+
+import requests
 
 
 class DebeziumConnectorManager:
