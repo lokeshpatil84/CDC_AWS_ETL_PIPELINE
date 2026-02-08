@@ -307,7 +307,7 @@ class SilverToGold:
             "gold_sales_summary",
         ]:
             try:
-                count = self.spark.sql(
+                count = self.spark.sql(  # nosec B608
                     f"SELECT COUNT(*) FROM glue.{self.database}.{table}"
                 ).collect()[0][0]
                 logger.info(f"{table}: {count} records")

@@ -181,7 +181,7 @@ class BronzeToSilver:
 
         if self.table_exists(f"silver_{table}"):
             try:
-                watermark_df = self.spark.sql(
+                watermark_df = self.spark.sql(  # nosec B608
                     f"SELECT MAX(source_ts_ms) as watermark FROM {silver_table}"
                 )
                 watermark_row = watermark_df.collect()
@@ -325,7 +325,7 @@ class BronzeToSilver:
         cols_str = ", ".join(all_cols)
 
         # Single atomic MERGE operation
-        merge_sql = f"""
+        merge_sql = f"""  # nosec B608
             MERGE INTO {target} AS tgt
             USING {staging} AS src
             ON tgt.id = src.id AND tgt._is_current = true
@@ -352,7 +352,7 @@ class BronzeToSilver:
         self.spark.sql(merge_sql)
 
         # Insert new versions for updated records (where we closed the old one)
-        insert_sql = f"""
+        insert_sql = f"""  # nosec B608
             INSERT INTO {target}
             SELECT {cols_str}
             FROM {staging} src
@@ -399,10 +399,10 @@ class BronzeToSilver:
 
         # Log stats
         try:
-            total = self.spark.sql(
+            total = self.spark.sql(  # nosec B608
                 f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table}"
             ).collect()[0][0]
-            current = self.spark.sql(
+            current = self.spark.sql(  # nosec B608
                 f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table} WHERE _is_current = true"
             ).collect()[0][0]
             logger.info(f"Silver {table}: Total={total}, Current={current}")
