@@ -181,8 +181,8 @@ class BronzeToSilver:
 
         if self.table_exists(f"silver_{table}"):
             try:
-                watermark_df = self.spark.sql(  # nosec B608
-                    f"SELECT MAX(source_ts_ms) as watermark FROM {silver_table}"
+                watermark_df = self.spark.sql(
+                    f"SELECT MAX(source_ts_ms) as watermark FROM {silver_table}"  # nosec B608
                 )
                 watermark_row = watermark_df.collect()
                 if watermark_row and watermark_row[0][0]:
@@ -325,7 +325,7 @@ class BronzeToSilver:
         cols_str = ", ".join(all_cols)
 
         # Single atomic MERGE operation
-        merge_sql = f"""  # nosec B608
+        merge_sql = f"""
             MERGE INTO {target} AS tgt
             USING {staging} AS src
             ON tgt.id = src.id AND tgt._is_current = true
@@ -347,12 +347,12 @@ class BronzeToSilver:
             WHEN NOT MATCHED THEN
                 INSERT ({cols_str})
                 VALUES ({cols_str})
-        """
+        """  # nosec B608
 
         self.spark.sql(merge_sql)
 
         # Insert new versions for updated records (where we closed the old one)
-        insert_sql = f"""  # nosec B608
+        insert_sql = f"""
             INSERT INTO {target}
             SELECT {cols_str}
             FROM {staging} src
@@ -371,7 +371,7 @@ class BronzeToSilver:
                 SELECT 1 FROM {target} tgt4 
                 WHERE tgt4.id = src.id AND tgt4._is_current = true AND tgt4._hash = src._hash
             )
-        """
+        """  # nosec B608
 
         self.spark.sql(insert_sql)
 
@@ -399,11 +399,11 @@ class BronzeToSilver:
 
         # Log stats
         try:
-            total = self.spark.sql(  # nosec B608
-                f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table}"
+            total = self.spark.sql(
+                f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table}"  # nosec B608
             ).collect()[0][0]
-            current = self.spark.sql(  # nosec B608
-                f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table} WHERE _is_current = true"
+            current = self.spark.sql(
+                f"SELECT COUNT(*) FROM glue.{self.database}.silver_{table} WHERE _is_current = true"  # nosec B608
             ).collect()[0][0]
             logger.info(f"Silver {table}: Total={total}, Current={current}")
         except Exception as e:
