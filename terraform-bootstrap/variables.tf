@@ -42,3 +42,27 @@ variable "tags" {
   }
 }
 
+# ============================================================================
+# Idempotent Deployment Variables
+# ============================================================================
+# These variables help manage idempotent behavior for CI/CD pipelines
+
+variable "force_recreate_table" {
+  description = "Set to true to force recreation of DynamoDB table (use with caution)"
+  type        = bool
+  default     = false
+  
+  # WARNING: Setting this to true will delete and recreate the table
+  # This will break any ongoing Terraform operations
+  validation {
+    condition     = var.force_recreate_table == false
+    error_message = "WARNING: Set force_recreate_table to true only if you want to delete and recreate the DynamoDB table. This will break state locking!"
+  }
+}
+
+variable "skip_table_creation" {
+  description = "Set to true to skip DynamoDB table creation (use when table already exists outside Terraform)"
+  type        = bool
+  default     = false
+}
+

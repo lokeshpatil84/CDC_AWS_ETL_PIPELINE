@@ -1,5 +1,5 @@
 """
-Kafka (Self-Managed on EC2) → S3 Bronze (Iceberg)
+Kafka (Self-Managed on EC2) -> S3 Bronze (Iceberg)
 Fits with: module.kafka (EC2 instance), module.s3 (bucket), module.ecs (Debezium)
 """
 
@@ -292,7 +292,7 @@ class KafkaToBronze:
     def run(self):
         """Main execution"""
         logger.info("=" * 70)
-        logger.info("KAFKA TO BRONZE: Self-Managed Kafka → S3 Iceberg")
+        logger.info("KAFKA TO BRONZE: Self-Managed Kafka -> S3 Iceberg")
         logger.info(f"Kafka: {self.kafka_brokers}")
         logger.info(f"S3 Bucket: {self.s3_bucket}")
         logger.info(f"Glue DB: {self.database}")

@@ -1,55 +1,41 @@
 # CDC Pipeline - AWS Data Engineering Project
 
-A production-grade Change Data Capture (CDC) pipeline built on AWS that captures real-time database changes using Debezium, processes them through Apache Kafka, and transforms data using AWS Glue before storing in a data lake architecture (Bronze → Silver → Gold).
+A production-grade Change Data Capture (CDC) pipeline built on AWS that captures real-time database changes using Debezium, processes them through Apache Kafka, and transforms data using AWS Glue before storing in a data lake architecture (Bronze -> Silver -> Gold).
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Architecture Overview](#-architecture-overview)
-- [Features](#-features)
-- [Prerequisites](#-prerequisites)
-- [Quick Start](#-quick-start)
-- [Project Structure](#-project-structure)
-- [Infrastructure Components](#-infrastructure-components)
-- [Deployment Guide](#-deployment-guide)
-- [Configuration](#-configuration)
-- [Data Pipeline Flow](#-data-pipeline-flow)
-- [Monitoring & Observability](#-monitoring--observability)
-- [Security Best Practices](#-security-best-practices)
-- [Cost Optimization](#-cost-optimization)
-- [Troubleshooting](#-troubleshooting)
-- [Cleanup](#-cleanup)
+- [Architecture Overview](#architecture-overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Infrastructure Components](#infrastructure-components)
+- [Deployment Guide](#deployment-guide)
+- [Configuration](#configuration)
+- [Data Pipeline Flow](#data-pipeline-flow)
+- [Monitoring & Observability](#monitoring--observability)
+- [Security Best Practices](#security-best-practices)
+- [Cost Optimization](#cost-optimization)
+- [Troubleshooting](#troubleshooting)
+- [Cleanup](#cleanup)
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              CDC Pipeline Architecture                           │
-└─────────────────────────────────────────────────────────────────────────────────┘
+CDC Pipeline Architecture
 
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Source DB  │───▶│  Debezium   │───▶│   Apache    │───▶│   Bronze    │
-│  (PostgreSQL)│    │  (ECS/Fargate)│    │   Kafka    │    │   (S3)      │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-                                                  │              │
-                                                  │              ▼
-                                           ┌──────┴──────┐    ┌─────────────┐
-                                           │   AWS Glue   │───▶│   Silver    │
-                                           │   Jobs       │    │   (S3/Iceberg)│
-                                           └──────────────┘    └─────────────┘
-                                                                   │
-                                                                   ▼
-                                                          ┌─────────────┐
-                                                          │    Gold     │
-                                                          │  (Aggregated)│
-                                                          └─────────────┘
-                                                                   │
-                                                                   ▼
-                                                          ┌─────────────┐
-                                                          │  Airflow    │
-                                                          │  Orchestration│
-                                                          └─────────────┘
+Source DB  --- Debezium --- Apache Kafka --- Bronze (S3)
+                                                |
+                                                v
+                                        AWS Glue --- Silver (S3/Iceberg)
+                                                |
+                                                v
+                                        Gold (Aggregated)
+                                                |
+                                                v
+                                        Airflow Orchestration
 ```
 
 ### Key Components
@@ -67,28 +53,28 @@ A production-grade Change Data Capture (CDC) pipeline built on AWS that captures
 
 ---
 
-## ✨ Features
+## Features
 
-- 🚀 **Real-time CDC**: Capture database changes instantly using Debezium
-- 📊 **Medallion Architecture**: Bronze → Silver → Gold data transformation
-- 🧊 **Iceberg Integration**: ACID transactions, time travel, schema evolution
-- 🔄 **Exactly-Once Processing**: Reliable data processing semantics
-- 📈 **Scalable**: Auto-scaling Glue jobs, managed Kafka
-- 🔒 **Secure**: VPC isolation, encryption at rest/transit, IAM roles
-- 📝 **Observable**: CloudWatch metrics, logs, and alerts
-- 🛠️ **Production-Ready**: Terraform IaC, structured logging, monitoring
+- Real-time CDC: Capture database changes instantly using Debezium
+- Medallion Architecture: Bronze -> Silver -> Gold data transformation
+- Iceberg Integration: ACID transactions, time travel, schema evolution
+- Exactly-Once Processing: Reliable data processing semantics
+- Scalable: Auto-scaling Glue jobs, managed Kafka
+- Secure: VPC isolation, encryption at rest/transit, IAM roles
+- Observable: CloudWatch metrics, logs, and alerts
+- Production-Ready: Terraform IaC, structured logging, monitoring
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 ### Required Tools
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| AWS CLI | ≥ 2.0 | AWS resource management |
-| Terraform | ≥ 1.0 | Infrastructure as Code |
-| Python | ≥ 3.9 | Glue job scripts |
+| AWS CLI | >= 2.0 | AWS resource management |
+| Terraform | >= 1.0 | Infrastructure as Code |
+| Python | >= 3.9 | Glue job scripts |
 | Docker | Latest | Container builds |
 
 ### AWS Account Setup
@@ -111,7 +97,7 @@ A production-grade Change Data Capture (CDC) pipeline built on AWS that captures
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone and Setup
 
@@ -165,7 +151,7 @@ aws ec2 describe-instances --filters "Name=tag:Project,Values=cdc-pipeline"
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 local_aws_etl_pipline/
@@ -208,7 +194,7 @@ local_aws_etl_pipline/
 
 ---
 
-## 🏗️ Infrastructure Components
+## Infrastructure Components
 
 ### VPC & Networking
 
@@ -237,7 +223,7 @@ local_aws_etl_pipline/
 
 ---
 
-## 📖 Deployment Guide
+## Deployment Guide
 
 ### Environment Setup
 
@@ -287,7 +273,7 @@ terraform destroy -var-file=terraform.tfvars.dev
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Terraform Variables
 
@@ -323,12 +309,12 @@ Jobs are configured with:
 
 ---
 
-## 🔄 Data Pipeline Flow
+## Data Pipeline Flow
 
 ### 1. Bronze Layer (Raw CDC)
 
 ```
-Source DB → Debezium → Kafka Topic → S3 Bronze Bucket
+Source DB -> Debezium -> Kafka Topic -> S3 Bronze Bucket
 ```
 
 **Format**: JSON with CDC payload
@@ -337,7 +323,7 @@ Source DB → Debezium → Kafka Topic → S3 Bronze Bucket
   "before": null,
   "after": {"id": 1, "name": "test", "updated_at": "2024-01-01"},
   "source": {"version": "2.4.0", "connector": "postgresql"},
-  "op": "c",  // c=create, u=update, d=delete, r=read
+  "op": "c",
   "ts_ms": 1704067200000
 }
 ```
@@ -345,7 +331,7 @@ Source DB → Debezium → Kafka Topic → S3 Bronze Bucket
 ### 2. Silver Layer (Cleaned & Enriched)
 
 ```
-Bronze → Glue Job → S3 Silver (Iceberg) → Delta Tracking
+Bronze -> Glue Job -> S3 Silver (Iceberg) -> Delta Tracking
 ```
 
 **Transformations**:
@@ -357,7 +343,7 @@ Bronze → Glue Job → S3 Silver (Iceberg) → Delta Tracking
 ### 3. Gold Layer (Business Aggregates)
 
 ```
-Silver → Glue Job → S3 Gold (Iceberg) → Analytics Ready
+Silver -> Glue Job -> S3 Gold (Iceberg) -> Analytics Ready
 ```
 
 **Aggregations**:
@@ -370,14 +356,14 @@ Silver → Glue Job → S3 Gold (Iceberg) → Analytics Ready
 
 The `cdc_pipeline_dag.py` orchestrates:
 1. Check Kafka connectivity
-2. Trigger Bronze → Silver job
-3. Trigger Silver → Gold job
+2. Trigger Bronze -> Silver job
+3. Trigger Silver -> Gold job
 4. Validate outputs
 5. Send notifications
 
 ---
 
-## 📊 Monitoring & Observability
+## Monitoring & Observability
 
 ### CloudWatch Metrics
 
@@ -415,19 +401,19 @@ aws logs tail /aws/glue/cdc-pipeline-dev --follow
 
 ---
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
 ### Network Security
 
-- ✅ **VPC Isolation**: All services in private subnets
-- ✅ **Security Groups**: Least-privilege access
-- ✅ **No Public IPs**: Services not exposed directly
+- VPC Isolation: All services in private subnets
+- Security Groups: Least-privilege access
+- No Public IPs: Services not exposed directly
 
 ### Data Security
 
-- ✅ **Encryption at Rest**: All S3 buckets, RDS, EBS encrypted
-- ✅ **Encryption in Transit**: TLS enabled
-- ✅ **IAM Roles**: No long-lived credentials
+- Encryption at Rest: All S3 buckets, RDS, EBS encrypted
+- Encryption in Transit: TLS enabled
+- IAM Roles: No long-lived credentials
 
 ### Secrets Management
 
@@ -439,15 +425,15 @@ aws secretsmanager get-secret-value \
 
 ### Recommended Additional Security
 
-1. **Enable VPC Flow Logs** for network monitoring
-2. **Configure AWS GuardDuty** for threat detection
-3. **Enable AWS Config** for compliance
-4. **Implement AWS CloudTrail** for audit logging
-5. **Use AWS KMS** for encryption key management
+1. Enable VPC Flow Logs for network monitoring
+2. Configure AWS GuardDuty for threat detection
+3. Enable AWS Config for compliance
+4. Implement AWS CloudTrail for audit logging
+5. Use AWS KMS for encryption key management
 
 ---
 
-## 💰 Cost Optimization
+## Cost Optimization
 
 ### Estimated Monthly Costs (ap-south-1)
 
@@ -463,27 +449,118 @@ aws secretsmanager get-secret-value \
 
 ### Cost Saving Tips
 
-1. **Use dev environment sparingly**: Destroy when not in use
-2. **Right-size instances**: Start small, scale as needed
-3. **Schedule Glue jobs**: Run during off-peak hours
-4. **Lifecycle policies**: Automatically expire old data
-5. **Use AWS Free Tier**: First 12 months include many free resources
+1. Use dev environment sparingly: Destroy when not in use
+2. Right-size instances: Start small, scale as needed
+3. Schedule Glue jobs: Run during off-peak hours
+4. Lifecycle policies: Automatically expire old data
+5. Use AWS Free Tier: First 12 months include many free resources
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
-### Common Issues
+### Terraform State Lock DynamoDB Error
 
-#### 1. Terraform Backend Error
+```
+Error: TableAlreadyExists: Table already exists: cdc-pipeline-terraform-lock-dev
+```
 
+**Cause**: Terraform is trying to create a DynamoDB table that already exists. This typically happens when:
+- Running terraform-bootstrap multiple times
+- CI/CD pipeline runs without proper state management
+- Manual table creation before Terraform
+
+**Solutions**:
+
+#### Solution 1: Use Terraform Import (Recommended)
 ```bash
-Error: Failed to get existing workspaces
-# Cause: S3 bucket doesn't exist
-# Fix: Run terraform-bootstrap first
 cd terraform-bootstrap
+
+# Import the existing table into Terraform state
+terraform import aws_dynamodb_table.terraform_lock cdc-pipeline-terraform-lock-dev
+
+# Verify and apply
+terraform plan
 terraform apply
 ```
+
+#### Solution 2: Use Pre-built Terraform Configuration
+The terraform-bootstrap/main.tf now includes:
+- **Data source check**: Detects existing tables before creation
+- **Conditional creation**: Only creates table if it doesn't exist
+- **Lifecycle ignore**: Prevents accidental recreation
+
+```bash
+# This should now work without "TableAlreadyExists" error
+cd terraform-bootstrap
+terraform init
+terraform apply -var-file=terraform.tfvars.dev
+```
+
+#### Solution 3: Manual Cleanup (If needed)
+```bash
+# Check if table exists
+aws dynamodb describe-table --table-name cdc-pipeline-terraform-lock-dev
+
+# Delete existing table (WARNING: This breaks state locking!)
+aws dynamodb delete-table --table-name cdc-pipeline-terraform-lock-dev
+
+# Then run Terraform to recreate
+terraform apply
+```
+
+#### Solution 4: CI/CD Pipeline Fix
+For GitHub Actions or similar CI/CD:
+
+```yaml
+- name: Check DynamoDB Table
+  id: check-table
+  run: |
+    if aws dynamodb describe-table --table-name cdc-pipeline-terraform-lock-dev >/dev/null 2>&1; then
+      echo "exists=true" >> $GITHUB_OUTPUT
+    else
+      echo "exists=false" >> $GITHUB_OUTPUT
+    fi
+
+- name: Import Existing Table
+  if: steps.check-table.outputs.exists == 'true'
+  run: |
+    terraform import aws_dynamodb_table.terraform_lock cdc-pipeline-terraform-lock-dev || true
+
+- name: Apply Terraform
+  run: terraform apply -auto-approve
+```
+
+**Prevention**: Always use terraform-bootstrap first before main Terraform deployment.
+
+#### How the Fix Works
+
+The updated `terraform-bootstrap/main.tf` includes:
+
+1. **Data Source Check**:
+```hcl
+data "aws_dynamodb_table" "existing_lock" {
+  name = var.dynamodb_table_name
+  count = 1
+}
+```
+
+2. **Conditional Resource Creation**:
+```hcl
+resource "aws_dynamodb_table" "terraform_lock" {
+  count = try(data.aws_dynamodb_table.existing_lock[0].name, "") == "" ? 1 : 0
+  # ... configuration
+}
+```
+
+3. **Lifecycle Protection**:
+```hcl
+lifecycle {
+  ignore_changes = [name, billing_mode, server_side_encryption, attribute]
+}
+```
+
+This makes Terraform **idempotent** - safe to run multiple times without errors.
 
 #### 2. Kafka Connection Refused
 
@@ -539,7 +616,7 @@ aws ce get-cost-and-usage \
 
 ---
 
-## 🧹 Cleanup
+## Cleanup
 
 ### Destroy All Resources
 
@@ -565,7 +642,7 @@ terraform destroy -target=module.kafka
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 ### AWS Documentation
 
@@ -581,7 +658,7 @@ terraform destroy -target=module.kafka
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -591,17 +668,17 @@ terraform destroy -target=module.kafka
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 
 ---
 
-## 🆘 Support
+## Support
 
 For issues and questions:
 
-1. Check the [Troubleshooting](#troubleshooting) section
+1. Check the Troubleshooting section
 2. Review CloudWatch logs
 3. Search existing GitHub issues
 4. Create a new issue with:

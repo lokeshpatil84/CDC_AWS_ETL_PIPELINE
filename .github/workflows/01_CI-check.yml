@@ -48,7 +48,7 @@ jobs:
         run: |
           find . -name "*.py" -not -path "./.venv/*" -not -path "./env/*" -print0 | \
             xargs -0 -I {} python -m py_compile {} && \
-            echo "✓ Python syntax check passed"
+            echo "Python syntax check passed"
 
       - name: Code Formatting (Black)
         run: |
@@ -84,7 +84,7 @@ jobs:
           if [ -d tests ] || [ -d test ]; then 
             pytest --cov=. --cov-report=xml --cov-report=term -v
           else 
-            echo "ℹ No tests directory found - skipping pytest"
+            echo "No tests directory found - skipping pytest"
             # Don't fail if no tests, but create empty coverage
             echo "0" > coverage.txt
           fi
@@ -124,7 +124,7 @@ jobs:
             echo "Checking Terraform formatting..."
             terraform -chdir=terraform fmt -check -recursive
           else
-            echo "ℹ No terraform directory found"
+            echo "No terraform directory found"
           fi
 
       - name: Terraform Validate
@@ -137,7 +137,7 @@ jobs:
           echo "Validating Terraform..."
           terraform validate
           
-          echo "✓ Terraform validation passed"
+          echo "Terraform validation passed"
 
       - name: TFLint
         if: hashFiles('terraform/*.tf') != ''
@@ -186,9 +186,9 @@ jobs:
       - name: Validate Docker Compose
         run: |
           if [ -f docker-compose.yml ]; then 
-            docker compose config > /dev/null && echo "✓ Docker Compose valid"
+            docker compose config > /dev/null && echo "Docker Compose valid"
           else
-            echo "ℹ No docker-compose.yml found"
+            echo "No docker-compose.yml found"
           fi
 
       - name: Hadolint (Dockerfile Linter)
@@ -230,9 +230,9 @@ jobs:
           
           for file in "${!required_files[@]}"; do
             if [ -f "$file" ]; then
-              echo "  ✓ $file (${required_files[$file]})"
+              echo "  $file (${required_files[$file]})"
             else
-              echo "  ✗ $file MISSING (${required_files[$file]})"
+              echo "  $file MISSING (${required_files[$file]})"
               missing+=("$file")
             fi
           done
@@ -244,7 +244,7 @@ jobs:
           fi
           
           echo ""
-          echo "✓ All required files present"
+          echo "All required files present"
 
       - name: Check File Permissions
         run: |
@@ -298,4 +298,5 @@ jobs:
             exit 1
           fi
           
-          echo "✓ All CI checks passed!"
+          echo "All CI checks passed!"
+

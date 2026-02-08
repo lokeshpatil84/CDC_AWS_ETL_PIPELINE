@@ -1,6 +1,6 @@
 """
 Silver to Gold Glue Job
-Business aggregations on S3 Silver → S3 Gold
+Business aggregations on S3 Silver -> S3 Gold
 Fits with: module.glue, module.s3
 """
 

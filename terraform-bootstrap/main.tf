@@ -1,8 +1,3 @@
-# Terraform Backend Bootstrap - Production Grade
-# This Terraform creates the backend infrastructure needed for main Terraform
-# Run this FIRST before any other Terraform operations
-# This file should NOT be managed by Terraform itself
-
 terraform {
   required_version = ">= 1.0"
 
@@ -18,9 +13,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-# ============================================
 # S3 Bucket for Terraform State (Backend)
-# ============================================
 resource "aws_s3_bucket" "terraform_state" {
   bucket = var.bucket_name
 
@@ -67,12 +60,27 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
   restrict_public_buckets = true
 }
 
-# ============================================
 # DynamoDB Table for State Locking
-# ============================================
+
+# Check if DynamoDB table already exists (for idempotent deployments)
+data "aws_dynamodb_table" "existing_lock" {
+  name = var.dynamodb_table_name
+  count = 1
+  
+  lifecycle {
+    precondition {
+      condition     = var.skip_table_creation != true || var.force_recreate_table == true
+      error_message = "Cannot use skip_table_creation with existing table. Either remove skip_table_creation flag or set force_recreate_table=true to recreate."
+    }
+  }
+}
+
+# Create DynamoDB table only if it doesn't already exist
 resource "aws_dynamodb_table" "terraform_lock" {
+  count = (var.skip_table_creation == true || var.force_recreate_table == true) ? 0 : try(data.aws_dynamodb_table.existing_lock[0].name, "") == "" ? 1 : 0
+  
   name         = var.dynamodb_table_name
-  billing_mode = "PAY_PER_REQUEST" # On-demand capacity
+  billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
   attribute {
@@ -80,7 +88,6 @@ resource "aws_dynamodb_table" "terraform_lock" {
     type = "S"
   }
 
-  # Enable server-side encryption
   server_side_encryption {
     enabled = true
   }
@@ -91,5 +98,16 @@ resource "aws_dynamodb_table" "terraform_lock" {
     ManagedBy   = "terraform-bootstrap"
     Environment = var.environment
   })
+  
+  lifecycle {
+    prevent_destroy = false
+    
+    ignore_changes = [
+      name,
+      billing_mode,
+      server_side_encryption,
+      attribute,
+    ]
+  }
 }
 

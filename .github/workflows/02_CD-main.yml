@@ -198,23 +198,23 @@ jobs:
           
           # Check S3 bucket
           if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-            echo "✓ S3 bucket exists: $BUCKET"
+            echo "S3 bucket exists: $BUCKET"
             BUCKET_EXISTS="true"
           else
-            echo "ℹ S3 bucket missing: $BUCKET"
+            echo "S3 bucket missing: $BUCKET"
           fi
           
           # Check DynamoDB table
           if aws dynamodb describe-table --table-name "$TABLE" --region ${{ env.AWS_REGION }} 2>/dev/null >/dev/null; then
-            echo "✓ DynamoDB table exists: $TABLE"
+            echo "DynamoDB table exists: $TABLE"
             TABLE_EXISTS="true"
           else
-            echo "ℹ DynamoDB table missing: $TABLE"
+            echo "DynamoDB table missing: $TABLE"
           fi
           
           if [ "$BUCKET_EXISTS" = "true" ] && [ "$TABLE_EXISTS" = "true" ]; then
             echo "bootstrapped=true" >> $GITHUB_OUTPUT
-            echo "✓ Backend resources already exist"
+            echo "Backend resources already exist"
           else
             echo "bootstrapped=false" >> $GITHUB_OUTPUT
           fi
@@ -245,9 +245,9 @@ jobs:
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="project_name=${{ env.PROJECT_NAME }}"
           
-          terraform apply -auto-approve tfplan-bootstrap
+          terraform apply -auto_approve tfplan-bootstrap
           
-          echo "✓ Backend resources created"
+          echo "Backend resources created"
 
       - name: Wait for AWS Propagation
         if: steps.check.outputs.bootstrapped == 'false'
@@ -255,7 +255,7 @@ jobs:
           BUCKET="${{ needs.pre-check.outputs.bucket }}"
           for i in {1..6}; do
             if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-              echo "✓ Bucket confirmed ready"
+              echo "Bucket confirmed ready"
               exit 0
             fi
             echo "Waiting for bucket... attempt $i/6"
@@ -332,7 +332,7 @@ jobs:
           
           case $EXIT_CODE in
             0)
-              echo "ℹ No changes detected"
+              echo "No changes detected"
               echo "has_changes=false" >> $GITHUB_OUTPUT
               echo "drift_detected=false" >> $GITHUB_OUTPUT
               ;;
@@ -342,7 +342,7 @@ jobs:
               exit 1
               ;;
             2)
-              echo "✓ Changes detected"
+              echo "Changes detected"
               echo "has_changes=true" >> $GITHUB_OUTPUT
               echo "plan_id=${PLAN_ID}" >> $GITHUB_OUTPUT
               
@@ -447,7 +447,7 @@ jobs:
         working-directory: terraform
         run: |
           terraform state pull > "state-backup-${{ github.run_id }}.json"
-          echo "✓ State backup created"
+          echo "State backup created"
 
       - name: Upload State Backup
         uses: actions/upload-artifact@v4
@@ -468,7 +468,7 @@ jobs:
         run: |
           PLAN="${{ needs.terraform-plan.outputs.plan_id }}"
           echo "Applying plan: $PLAN"
-          terraform apply -auto-approve -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} "$PLAN"
+          terraform apply -auto_approve -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} "$PLAN"
 
       - name: Capture Outputs
         id: outputs
@@ -549,7 +549,7 @@ jobs:
         working-directory: terraform
         run: |
           terraform destroy \
-            -auto-approve \
+            -auto_approve \
             -var="environment=${{ needs.pre-check.outputs.env }}" \
             -var="project_name=${{ env.PROJECT_NAME }}" \
             -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
@@ -570,19 +570,19 @@ jobs:
           TRIGGER="${{ github.event_name }}"
           
           if [ "${{ needs.terraform-apply.result }}" = "success" ]; then
-            STATUS="✅ DEPLOYED"
+            STATUS="DEPLOYED"
             MESSAGE="Infrastructure deployed successfully to $ENV"
           elif [ "${{ needs.terraform-apply.result }}" = "failure" ]; then
-            STATUS="❌ FAILED"
+            STATUS="FAILED"
             MESSAGE="Deployment to $ENV failed"
           elif [ "${{ needs.terraform-plan.result }}" = "success" ] && [ "${{ needs.terraform-plan.outputs.has_changes }}" = "true" ]; then
-            STATUS="📋 PLAN READY"
+            STATUS="PLAN READY"
             MESSAGE="Plan generated for $ENV - manual apply required"
           elif [ "${{ needs.terraform-plan.result }}" = "success" ]; then
-            STATUS="✅ NO CHANGES"
+            STATUS="NO CHANGES"
             MESSAGE="Infrastructure up to date in $ENV"
           else
-            STATUS="⚠️ UNKNOWN"
+            STATUS="UNKNOWN"
             MESSAGE="Check workflow logs"
           fi
           
@@ -605,9 +605,10 @@ jobs:
             echo ""
             echo "This was an AUTO-TRIGGER (CI success)"
             echo "To apply changes:"
-            echo "1. Go to Actions → CD - Pipeline"
+            echo "1. Go to Actions -> CD - Pipeline"
             echo "2. Click 'Run workflow'"
             echo "3. Select environment: ${{ needs.pre-check.outputs.env }}"
             echo "4. Select action: deploy"
             echo "5. Enter reason and run"
           fi
+
