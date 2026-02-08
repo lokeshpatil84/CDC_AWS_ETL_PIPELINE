@@ -461,9 +461,9 @@ bronze_to_silver = GlueJobOperator(
     job_name=GLUE_JOB_BRONZE,
     script_location=f"s3://{S3_BUCKET}/scripts/bronze_to_silver.py",
     s3_bucket=S3_BUCKET,
-    iam_role_name=GLUE_ROLE_ARN.split("/")[-1]
-    if GLUE_ROLE_ARN
-    else None,  # Extract role name from ARN
+    iam_role_name=(
+        GLUE_ROLE_ARN.split("/")[-1] if GLUE_ROLE_ARN else None
+    ),  # Extract role name from ARN
     region_name=AWS_REGION,
     num_of_dpus=10,  # Adjust based on data volume
     dag=dag,

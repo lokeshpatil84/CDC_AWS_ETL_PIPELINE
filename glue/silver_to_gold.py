@@ -13,7 +13,6 @@ from awsglue.job import Job
 from pyspark.sql.functions import *
 from pyspark.sql.window import Window
 
-
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
