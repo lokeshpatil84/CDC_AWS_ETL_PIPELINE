@@ -217,7 +217,7 @@ class KafkaToBronze:
         try:
             self.spark.read.table(full_table)
             logger.info(f"Bronze table exists: {full_table}")
-        except:
+        except Exception:
             logger.info(f"Creating Bronze table: {full_table}")
             self.spark.sql(
                 f"""
@@ -338,4 +338,3 @@ if __name__ == "__main__":
 
     job = KafkaToBronze()
     job.run()
-
