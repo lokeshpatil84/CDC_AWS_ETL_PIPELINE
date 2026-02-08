@@ -145,8 +145,7 @@ class BronzeToSilver:
         # Check if table exists
         if not self.table_exists(f"silver_{table}"):
             logger.info(f"Creating Silver table: {full_table}")
-            self.spark.sql(
-                f"""
+            self.spark.sql(f"""
                 CREATE TABLE IF NOT EXISTS {full_table} (
                     {base_schemas[table]}
                     {audit_cols}
@@ -158,8 +157,7 @@ class BronzeToSilver:
                     'write.target-file-size-bytes'='134217728',
                     'write.metadata.compression-codec'='gzip'
                 )
-            """
-            )
+            """)
         else:
             logger.info(f"Silver table exists: {full_table}")
 

@@ -219,8 +219,7 @@ class KafkaToBronze:
             logger.info(f"Bronze table exists: {full_table}")
         except Exception:
             logger.info(f"Creating Bronze table: {full_table}")
-            self.spark.sql(
-                f"""
+            self.spark.sql(f"""
                 CREATE TABLE {full_table} (
                     topic STRING,
                     kafka_partition INT,
@@ -249,8 +248,7 @@ class KafkaToBronze:
                     'write.target-file-size-bytes'='134217728',
                     'commit.retry.num-retries'='10'
                 )
-            """
-            )
+            """)
 
     def write_bronze(self, df: DataFrame):
         """Write to Bronze with exactly-once guarantee"""

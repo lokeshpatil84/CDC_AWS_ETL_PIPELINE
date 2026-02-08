@@ -112,8 +112,7 @@ class SilverToGold:
         )
 
         # Create table if not exists
-        self.spark.sql(
-            f"""
+        self.spark.sql(f"""
             CREATE TABLE IF NOT EXISTS glue.{self.database}.gold_user_analytics (
                 user_id BIGINT,
                 full_name STRING,
@@ -128,8 +127,7 @@ class SilverToGold:
                 refresh_date TIMESTAMP
             ) USING iceberg
             TBLPROPERTIES ('format-version'='2')
-        """
-        )
+        """)
 
         # Write with replace (full rebuild for simplicity)
         # For incremental, use MERGE instead
@@ -199,8 +197,7 @@ class SilverToGold:
             )
         )
 
-        self.spark.sql(
-            f"""
+        self.spark.sql(f"""
             CREATE TABLE IF NOT EXISTS glue.{self.database}.gold_product_analytics (
                 product_id BIGINT,
                 product_name STRING,
@@ -214,8 +211,7 @@ class SilverToGold:
                 refresh_date TIMESTAMP
             ) USING iceberg
             TBLPROPERTIES ('format-version'='2')
-        """
-        )
+        """)
 
         result.writeTo(f"glue.{self.database}.gold_product_analytics").replace()
         logger.info(f"Product analytics: {result.count()} records")
@@ -273,8 +269,7 @@ class SilverToGold:
             current_timestamp().alias("refresh_date"),
         )
 
-        self.spark.sql(
-            f"""
+        self.spark.sql(f"""
             CREATE TABLE IF NOT EXISTS glue.{self.database}.gold_sales_summary (
                 date_key STRING,
                 total_orders BIGINT,
@@ -286,8 +281,7 @@ class SilverToGold:
             ) USING iceberg
             PARTITIONED BY (days(refresh_date))
             TBLPROPERTIES ('format-version'='2')
-        """
-        )
+        """)
 
         result.writeTo(f"glue.{self.database}.gold_sales_summary").replace()
         logger.info(f"Sales summary: {result.count()} records")
