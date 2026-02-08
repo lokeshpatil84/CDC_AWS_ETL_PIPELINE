@@ -14,7 +14,9 @@ from typing import Dict, List, Optional
 
 class DebeziumConnectorManager:
     def __init__(self, connect_url: str = None):
-        self.connect_url = connect_url or os.getenv("DEBEZIUM_CONNECT_URL", "http://localhost:8083")
+        self.connect_url = connect_url or os.getenv(
+            "DEBEZIUM_CONNECT_URL", "http://localhost:8083"
+        )
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
 
@@ -40,8 +42,7 @@ class DebeziumConnectorManager:
         """Get detailed connector status"""
         try:
             response = self.session.get(
-                f"{self.connect_url}/connectors/{connector_name}/status", 
-                timeout=10
+                f"{self.connect_url}/connectors/{connector_name}/status", timeout=10
             )
             response.raise_for_status()
             return response.json()
@@ -59,11 +60,11 @@ class DebeziumConnectorManager:
         database_password: str,
         tables: List[str] = None,
         slot_name: str = "debezium_slot",
-        kafka_topic_prefix: str = "cdc"
+        kafka_topic_prefix: str = "cdc",
     ) -> bool:
         """Create Debezium PostgreSQL connector"""
         tables = tables or ["users", "products", "orders"]
-        
+
         # Connector configuration - KEEP FULL CDC ENVELOPE (no unwrap)
         # This preserves before/after for SCD Type 2
         connector_config = {
@@ -77,51 +78,43 @@ class DebeziumConnectorManager:
             "topic.prefix": kafka_topic_prefix,
             "table.include.list": ",".join([f"public.{t}" for t in tables]),
             "plugin.name": "pgoutput",
-            
             # Key/Value converters - keep as JSON, no schema (simpler)
             "key.converter": "org.apache.kafka.connect.json.JsonConverter",
             "value.converter": "org.apache.kafka.connect.json.JsonConverter",
             "key.converter.schemas.enable": "false",
             "value.converter.schemas.enable": "false",
-            
             # NO UNWRAP TRANSFORM - we need full envelope for SCD2
             # "transforms": "unwrap",
             # "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-            
             # Heartbeat for progress monitoring
             "heartbeat.interval.ms": "10000",
             "heartbeat.action.query": "INSERT INTO public.debezium_heartbeat (id, ts) VALUES (1, NOW()) ON CONFLICT (id) DO UPDATE SET ts = EXCLUDED.ts;",
-            
             # Slot and publication
             "slot.name": slot_name,
             "publication.name": "dbz_publication",
-            
             # Initial snapshot
             "snapshot.mode": "initial",
-            
             # Performance
             "max.batch.size": "2048",
             "max.queue.size": "8192",
             "poll.interval.ms": "1000",
-            
             # Schema history (stored in Kafka topic)
             "schema.history.internal.kafka.bootstrap.servers": os.getenv(
-                "KAFKA_BOOTSTRAP_SERVERS", 
-                "kafka:29092"
+                "KAFKA_BOOTSTRAP_SERVERS", "kafka:29092"
             ),
             "schema.history.internal.kafka.topic": f"schema-changes.{database_name}",
-            "schema.history.internal.store.only.captured.tables.ddl": "true"
+            "schema.history.internal.store.only.captured.tables.ddl": "true",
         }
 
         try:
             print(f"Creating connector: {connector_name}")
             print(f"Database: {database_host}:{database_port}/{database_name}")
             print(f"Tables: {tables}")
-            
+
             response = self.session.put(
                 f"{self.connect_url}/connectors/{connector_name}/config",
                 json=connector_config,
-                timeout=60
+                timeout=60,
             )
             response.raise_for_status()
             print(f"✓ Connector '{connector_name}' created successfully!")
@@ -129,7 +122,7 @@ class DebeziumConnectorManager:
 
         except requests.RequestException as e:
             print(f"✗ Error creating connector: {e}")
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 print(f"Response: {e.response.text}")
             return False
 
@@ -137,8 +130,7 @@ class DebeziumConnectorManager:
         """Delete a connector"""
         try:
             response = self.session.delete(
-                f"{self.connect_url}/connectors/{connector_name}", 
-                timeout=30
+                f"{self.connect_url}/connectors/{connector_name}", timeout=30
             )
             response.raise_for_status()
             print(f"✓ Connector '{connector_name}' deleted!")
@@ -151,8 +143,7 @@ class DebeziumConnectorManager:
         """Pause connector"""
         try:
             response = self.session.put(
-                f"{self.connect_url}/connectors/{connector_name}/pause", 
-                timeout=30
+                f"{self.connect_url}/connectors/{connector_name}/pause", timeout=30
             )
             response.raise_for_status()
             print(f"✓ Connector '{connector_name}' paused!")
@@ -165,8 +156,7 @@ class DebeziumConnectorManager:
         """Resume connector"""
         try:
             response = self.session.put(
-                f"{self.connect_url}/connectors/{connector_name}/resume", 
-                timeout=30
+                f"{self.connect_url}/connectors/{connector_name}/resume", timeout=30
             )
             response.raise_for_status()
             print(f"✓ Connector '{connector_name}' resumed!")
@@ -179,8 +169,7 @@ class DebeziumConnectorManager:
         """Restart connector"""
         try:
             response = self.session.post(
-                f"{self.connect_url}/connectors/{connector_name}/restart", 
-                timeout=30
+                f"{self.connect_url}/connectors/{connector_name}/restart", timeout=30
             )
             response.raise_for_status()
             print(f"✓ Connector '{connector_name}' restart initiated!")
@@ -193,8 +182,8 @@ class DebeziumConnectorManager:
         """Restart specific task"""
         try:
             response = self.session.post(
-                f"{self.connect_url}/connectors/{connector_name}/tasks/{task_id}/restart", 
-                timeout=30
+                f"{self.connect_url}/connectors/{connector_name}/tasks/{task_id}/restart",
+                timeout=30,
             )
             response.raise_for_status()
             print(f"✓ Task {task_id} restarted!")
@@ -207,8 +196,7 @@ class DebeziumConnectorManager:
         """Get list of topics connector is writing to"""
         try:
             response = self.session.get(
-                f"{self.connect_url}/connectors/{connector_name}/topics", 
-                timeout=10
+                f"{self.connect_url}/connectors/{connector_name}/topics", timeout=10
             )
             response.raise_for_status()
             return response.json().get("topics", [])
@@ -220,7 +208,7 @@ class DebeziumConnectorManager:
 def setup_local():
     """Setup for local Docker environment"""
     manager = DebeziumConnectorManager("http://localhost:8083")
-    
+
     # Wait for Debezium to be ready
     print("Waiting for Debezium Connect...")
     for i in range(30):
@@ -232,11 +220,11 @@ def setup_local():
     else:
         print("✗ Debezium Connect not available")
         sys.exit(1)
-    
+
     # Check existing
     existing = manager.get_connectors()
     print(f"Existing connectors: {existing}")
-    
+
     # Create connector
     success = manager.create_postgresql_connector(
         connector_name="cdc-postgres-connector",
@@ -247,7 +235,7 @@ def setup_local():
         database_password=os.getenv("DB_PASSWORD", "postgres"),
         tables=["users", "products", "orders"],
         slot_name="debezium_slot",
-        kafka_topic_prefix="cdc"
+        kafka_topic_prefix="cdc",
     )
 
     if success:
@@ -266,34 +254,37 @@ def setup_aws():
     if not connect_url:
         print("Error: DEBEZIUM_CONNECT_URL not set")
         sys.exit(1)
-    
+
     manager = DebeziumConnectorManager(connect_url)
-    
+
     # Get DB credentials from Secrets Manager (from Terraform aws_secretsmanager_secret)
     secret_name = os.getenv("DB_SECRET_NAME", "cdc-pipeline-dev-db-credentials")
-    
+
     try:
         import boto3
-        secrets_client = boto3.client('secretsmanager', region_name=os.getenv("AWS_REGION", "ap-south-1"))
+
+        secrets_client = boto3.client(
+            "secretsmanager", region_name=os.getenv("AWS_REGION", "ap-south-1")
+        )
         secret = secrets_client.get_secret_value(SecretId=secret_name)
-        credentials = json.loads(secret['SecretString'])
+        credentials = json.loads(secret["SecretString"])
     except Exception as e:
         print(f"Error fetching secret {secret_name}: {e}")
         sys.exit(1)
-    
+
     # Create connector
     success = manager.create_postgresql_connector(
         connector_name="cdc-postgres-connector",
-        database_host=credentials['host'],
-        database_port=int(credentials['port']),
-        database_name=credentials['database'],
-        database_user=credentials['username'],
-        database_password=credentials['password'],
+        database_host=credentials["host"],
+        database_port=int(credentials["port"]),
+        database_name=credentials["database"],
+        database_user=credentials["username"],
+        database_password=credentials["password"],
         tables=["users", "products", "orders"],
         slot_name="debezium_slot_aws",
-        kafka_topic_prefix="cdc"
+        kafka_topic_prefix="cdc",
     )
-    
+
     if success:
         print("\nWaiting for connector to start...")
         time.sleep(10)
