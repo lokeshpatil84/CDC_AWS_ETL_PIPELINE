@@ -79,9 +79,23 @@ resource "aws_iam_policy" "glue_catalog_policy" {
     Statement = [
       {
         Effect = "Allow"
-        Action = ["glue:GetDatabase", "glue:CreateDatabase", "glue:GetTable",
+        Action = [
+          "glue:GetDatabase", "glue:CreateDatabase", "glue:GetTable",
           "glue:CreateTable", "glue:UpdateTable", "glue:GetPartitions",
-        "glue:CreatePartition", "glue:BatchCreatePartition"]
+          "glue:CreatePartition", "glue:BatchCreatePartition",
+          "glue:DeleteTable", "glue:DeletePartition", "glue:BatchDeletePartition",
+          "glue:BatchGetPartition", "glue:UpdatePartition",
+          "glue:StartJobRun", "glue:GetJobRun", "glue:GetJobRuns",
+          "glue:GetDevEndpoint", "glue:GetDevEndpoints"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lakeformation:GetDataAccess", "lakeformation:GrantPermissions",
+          "lakeformation:RevokePermissions", "lakeformation:GetResourceLFTags"
+        ]
         Resource = "*"
       }
     ]
@@ -110,7 +124,7 @@ resource "aws_glue_job" "kafka_to_bronze" {
     "--JOB_NAME"                         = "${var.project_name}-${var.environment}-kafka-to-bronze"
     "--DATABASE_NAME"                    = "cdc_demo"
     "--S3_BUCKET"                        = var.s3_bucket_name
-    "--KAFKA_BOOTSTRAP_SERVERS"          = var.kafka_bootstrap_servers
+    "--KAFKA_BROKERS"                    = var.kafka_bootstrap_servers # Fixed: was KAFKA_BOOTSTRAP_SERVERS
     "--REGION"                           = var.aws_region
     "--enable-continuous-cloudwatch-log" = "true"
     "--enable-metrics"                   = ""

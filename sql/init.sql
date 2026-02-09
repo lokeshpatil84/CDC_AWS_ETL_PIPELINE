@@ -1,6 +1,11 @@
-ALTER SYSTEM SET wal_level = logical;
-ALTER SYSTEM SET max_replication_slots = 4;
-ALTER SYSTEM SET max_wal_senders = 4;
+-- NOTE: PostgreSQL configuration (wal_level, max_replication_slots, max_wal_senders)
+-- is now managed via Terraform DB parameter group, not here.
+
+-- Debezium heartbeat table (required for CDC)
+CREATE TABLE IF NOT EXISTS debezium_heartbeat (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,

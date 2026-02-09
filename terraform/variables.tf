@@ -56,6 +56,11 @@ variable "db_port" {
   default = 5432
 }
 
+variable "engine_version" {
+  type    = string
+  default = "15.10"
+}
+
 variable "ecs_cpu" {
   type    = number
   default = 256
@@ -146,5 +151,11 @@ variable "ssh_cidr_blocks" {
   type        = string
   default     = "0.0.0.0/0"
   description = "CIDR blocks for SSH access to Kafka (restrict in production)"
+}
+
+variable "local_ip_cidr_blocks" {
+  type        = list(string)
+  default     = []
+  description = "Local IP CIDR blocks to allow PostgreSQL access from (for debugging)"
 }
 

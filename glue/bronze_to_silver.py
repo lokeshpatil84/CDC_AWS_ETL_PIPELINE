@@ -6,6 +6,7 @@ Fits with: module.glue (Glue jobs), module.s3 (bucket)
 
 import logging
 import sys
+import time
 
 from awsglue.context import GlueContext
 from awsglue.job import Job
@@ -23,12 +24,19 @@ logger = logging.getLogger("bronze-to-silver")
 class BronzeToSilver:
     TABLES = ["users", "products", "orders"]
 
-    # Schema definitions for JSON parsing
+    # Schema definitions - transforms are string configs, NOT Spark expressions
+    # Spark expressions are created at runtime in get_transforms()
     TABLE_SCHEMAS = {
         "users": {
             "columns": ["id", "name", "email", "created_at", "updated_at"],
             "types": {"id": "long", "created_at": "long", "updated_at": "long"},
-            "transforms": {"email_domain": regexp_extract(col("email"), "@(.+)$", 1)},
+            "transforms": {
+                "email_domain": {
+                    "expr": "regexp_extract",
+                    "params": ["email", "@(.+)$", 1],
+                    "output": "string",
+                }
+            },
         },
         "products": {
             "columns": ["id", "name", "price", "category", "created_at", "updated_at"],
@@ -39,9 +47,14 @@ class BronzeToSilver:
                 "updated_at": "long",
             },
             "transforms": {
-                "price_category": when(col("price") < 50, "Low")
-                .when(col("price") < 200, "Medium")
-                .otherwise("High")
+                "price_category": {
+                    "expr": "when",
+                    "params": [
+                        {"expr": "<", "col": "price", "val": 50, "then": "Low"},
+                        {"expr": "<", "col": "price", "val": 200, "then": "Medium"},
+                        {"else": "High"},
+                    ],
+                }
             },
         },
         "orders": {
@@ -65,9 +78,24 @@ class BronzeToSilver:
                 "updated_at": "long",
             },
             "transforms": {
-                "order_value_category": when(col("total_amount") < 100, "Small")
-                .when(col("total_amount") < 500, "Medium")
-                .otherwise("Large")
+                "order_value_category": {
+                    "expr": "when",
+                    "params": [
+                        {
+                            "expr": "<",
+                            "col": "total_amount",
+                            "val": 100,
+                            "then": "Small",
+                        },
+                        {
+                            "expr": "<",
+                            "col": "total_amount",
+                            "val": 500,
+                            "then": "Medium",
+                        },
+                        {"else": "Large"},
+                    ],
+                }
             },
         },
     }
@@ -81,7 +109,8 @@ class BronzeToSilver:
         """Initialize Glue with S3 + Iceberg"""
         args = getResolvedOptions(sys.argv, ["JOB_NAME"])
 
-        sc = SparkContext()
+        # Use getOrCreate to avoid duplicate context issues
+        sc = SparkContext.getOrCreate()
         glueContext = GlueContext(sc)
         spark = glueContext.spark_session
 
@@ -112,6 +141,73 @@ class BronzeToSilver:
 
         return spark
 
+    def _build_transform_expr(self, transform_config, col_name=None):
+        """Build Spark column expression from config at runtime"""
+        expr_type = transform_config.get("expr")
+
+        if expr_type == "regexp_extract":
+            # regexp_extract(email, "@(.+)$", 1)
+            params = transform_config.get("params", [])
+            col_expr = col(params[0])
+            pattern = params[1]
+            idx = params[2]
+            return regexp_extract(col_expr, pattern, idx)
+
+        elif expr_type == "when":
+            # when(condition, value).when(condition, value).otherwise(value)
+            params = transform_config.get("params", [])
+            result = None
+
+            # Process in reverse order for proper nesting
+            for param in reversed(params):
+                if "else" in param:
+                    result = lit(param["else"])
+                else:
+                    # Build condition
+                    col_name = param["col"]
+                    val = param["val"]
+                    op = param["expr"]
+                    then_val = param["then"]
+
+                    if result is None:
+                        result = lit(then_val)
+
+                    # Build the when condition
+                    if op == "<":
+                        condition = col(col_name) < val
+                    elif op == ">":
+                        condition = col(col_name) > val
+                    elif op == "==":
+                        condition = col(col_name) == val
+                    else:
+                        condition = col(col_name) == val
+
+                    result = when(condition, result)
+
+            return result
+
+        else:
+            # Default: return literal
+            return lit(None)
+
+    def _get_transforms_for_table(self, table: str):
+        """Get transform expressions for a table (built at runtime)"""
+        transforms = {}
+        config = self.TABLE_SCHEMAS.get(table, {})
+
+        for col_name, transform_config in config.get("transforms", {}).items():
+            transforms[col_name] = self._build_transform_expr(transform_config)
+
+        return transforms
+
+    def _get_table_columns(self, table: str):
+        """Get column list for a table"""
+        return self.TABLE_SCHEMAS.get(table, {}).get("columns", [])
+
+    def _get_column_types(self, table: str):
+        """Get column type mapping for a table"""
+        return self.TABLE_SCHEMAS.get(table, {}).get("types", {})
+
     def table_exists(self, table: str) -> bool:
         try:
             self.spark.read.table(f"glue.{self.database}.{table}")
@@ -121,6 +217,11 @@ class BronzeToSilver:
 
     def create_silver_table(self, table: str):
         """Create Silver table with SCD Type 2 columns"""
+        # Get transform column names (not types - they're computed)
+        transform_cols = list(
+            self.TABLE_SCHEMAS.get(table, {}).get("transforms", {}).keys()
+        )
+
         base_schemas = {
             "users": "id BIGINT, name STRING, email STRING, email_domain STRING, is_active BOOLEAN",
             "products": "id BIGINT, name STRING, price DOUBLE, category STRING, price_category STRING, is_active BOOLEAN",
@@ -196,34 +297,32 @@ class BronzeToSilver:
             except Exception as e:
                 logger.warning(f"Could not get watermark, doing full load: {e}")
 
-        # Check if empty
-        count = bronze_df.count()
-        if count == 0:
+        # Check if empty (use take(1) instead of count() for performance)
+        if not bronze_df.take(1):
             logger.info(f"No new data for {table}")
             return None
-
-        logger.info(f"Read {count} records from Bronze for {table}")
         return bronze_df
 
     def parse_and_transform(self, df, table: str):
         """Parse JSON and apply business transformations"""
-        config = self.TABLE_SCHEMAS[table]
+        table_config = self.TABLE_SCHEMAS[table]
+        columns = table_config.get("columns", [])
+        types = table_config.get("types", {})
+        transforms = self._get_transforms_for_table(table)
 
         # Select data based on operation (use before for deletes, after for inserts/updates)
         data_col = when(col("operation") == "d", col("before_json")).otherwise(
             col("after_json")
         )
 
-        # Get sample for schema inference (handle nulls)
-        sample_rows = (
-            df.filter(data_col.isNotNull()).select(data_col).limit(10).collect()
-        )
-        if not sample_rows:
+        # Get sample for schema inference (use first() instead of collect() for driver memory safety)
+        sample_row = df.filter(data_col.isNotNull()).select(data_col).limit(1).first()
+        if not sample_row:
             logger.warning(f"No valid data found for {table}")
             return None
 
         # Infer schema from first valid row
-        sample_json = sample_rows[0][0]
+        sample_json = sample_row[0]
         json_schema = self.spark.read.json(
             self.spark.sparkContext.parallelize([sample_json])
         ).schema
@@ -232,12 +331,12 @@ class BronzeToSilver:
 
         # Build select expressions
         selects = []
-        for col_name in config["columns"]:
-            cast_type = config["types"].get(col_name, "string")
+        for col_name in columns:
+            cast_type = types.get(col_name, "string")
             selects.append(col(f"data.{col_name}").cast(cast_type).alias(col_name))
 
-        # Add computed columns
-        for new_col, expr in config["transforms"].items():
+        # Add computed columns (from runtime-built transforms)
+        for new_col, expr in transforms.items():
             selects.append(expr.alias(new_col))
 
         # Add audit columns
@@ -269,11 +368,12 @@ class BronzeToSilver:
         return deduped
 
     def generate_hash(self, df, table: str):
-        """Generate SHA-256 hash for change detection (better than MD5)"""
-        config = self.TABLE_SCHEMAS[table]
-        business_cols = (
-            config["columns"] + list(config["transforms"].keys()) + ["is_active"]
+        """Generate SHA-256 hash for change detection"""
+        columns = self.TABLE_SCHEMAS.get(table, {}).get("columns", [])
+        transform_cols = list(
+            self.TABLE_SCHEMAS.get(table, {}).get("transforms", {}).keys()
         )
+        business_cols = columns + transform_cols + ["is_active"]
 
         # Build concatenation with null handling
         concat_exprs = [
@@ -304,10 +404,13 @@ class BronzeToSilver:
         staged_df.createOrReplaceTempView(staging)
 
         # Get column lists for INSERT
-        config = self.TABLE_SCHEMAS[table]
+        table_config = self.TABLE_SCHEMAS[table]
+        columns = table_config.get("columns", [])
+        transform_cols = list(table_config.get("transforms", {}).keys())
+
         base_cols = (
-            config["columns"]
-            + list(config["transforms"].keys())
+            columns
+            + transform_cols
             + [
                 "is_active",
                 "operation",
@@ -351,7 +454,7 @@ class BronzeToSilver:
 
         self.spark.sql(merge_sql)
 
-        # Insert new versions for updated records (where we closed the old one)
+        # Insert new versions for updated records
         insert_sql = f"""
             INSERT INTO {target}
             SELECT {cols_str}
