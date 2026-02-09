@@ -29,3 +29,9 @@ variable "tags" {
   }
 }
 
+variable "local_ip_cidr_blocks" {
+  type        = list(string)
+  description = "Local IP CIDR blocks to allow PostgreSQL access from (for debugging)"
+  default     = []
+}
+

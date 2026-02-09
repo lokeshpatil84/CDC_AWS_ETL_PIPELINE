@@ -121,11 +121,20 @@ resource "aws_security_group" "postgres" {
   description = "Security group for PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
+  # Allow from within VPC
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Allow from local IP for debugging (optional - remove in production)
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = var.local_ip_cidr_blocks
   }
 
   lifecycle {
@@ -190,5 +199,89 @@ resource "aws_security_group" "glue" {
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-glue-sg"
   })
+}
+
+# ============================================================================
+# Network ACLs (NACLs) - Critical for RDS Public Access
+# ============================================================================
+# NACLs are stateless! Must explicitly allow return traffic (ephemeral ports)
+# ============================================================================
+
+resource "aws_network_acl" "public" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = aws_subnet.public[*].id
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-public-nacl"
+  })
+}
+
+# Inbound rules for public subnets - Allow PostgreSQL from anywhere (for RDS)
+resource "aws_network_acl_rule" "public_inbound_postgres" {
+  network_acl_id = aws_network_acl.public.id
+  rule_number    = 100
+  egress         = false
+  protocol       = "tcp"
+  from_port      = 5432
+  to_port        = 5432
+  cidr_block     = "0.0.0.0/0"
+  rule_action    = "allow"
+}
+
+# Inbound rules for public subnets - Allow ephemeral ports (1024-65535) for return traffic
+resource "aws_network_acl_rule" "public_inbound_ephemeral" {
+  network_acl_id = aws_network_acl.public.id
+  rule_number    = 200
+  egress         = false
+  protocol       = "tcp"
+  from_port      = 1024
+  to_port        = 65535
+  cidr_block     = "0.0.0.0/0"
+  rule_action    = "allow"
+}
+
+# Outbound rules for public subnets - Allow all traffic (responses)
+resource "aws_network_acl_rule" "public_outbound_all" {
+  network_acl_id = aws_network_acl.public.id
+  rule_number    = 100
+  egress         = true
+  protocol       = "-1"
+  from_port      = 0
+  to_port        = 0
+  cidr_block     = "0.0.0.0/0"
+  rule_action    = "allow"
+}
+
+resource "aws_network_acl" "private" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = aws_subnet.private[*].id
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-private-nacl"
+  })
+}
+
+# Inbound rules for private subnets - Allow all traffic from VPC
+resource "aws_network_acl_rule" "private_inbound_vpc" {
+  network_acl_id = aws_network_acl.private.id
+  rule_number    = 100
+  egress         = false
+  protocol       = "-1"
+  from_port      = 0
+  to_port        = 0
+  cidr_block     = var.vpc_cidr
+  rule_action    = "allow"
+}
+
+# Outbound rules for private subnets - Allow all traffic to VPC and internet
+resource "aws_network_acl_rule" "private_outbound_all" {
+  network_acl_id = aws_network_acl.private.id
+  rule_number    = 100
+  egress         = true
+  protocol       = "-1"
+  from_port      = 0
+  to_port        = 0
+  cidr_block     = "0.0.0.0/0"
+  rule_action    = "allow"
 }
 

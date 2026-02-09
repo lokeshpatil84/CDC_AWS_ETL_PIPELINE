@@ -1,0 +1,28 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "database.hostname": "${secretsmanager:cdc-pipeline-dev-db-credentials:host}",
+  "database.port": "5432",
+  "database.user": "${secretsmanager:cdc-pipeline-dev-db-credentials:username}",
+  "database.password": "${secretsmanager:cdc-pipeline-dev-db-credentials:password}",
+  "database.dbname": "${secretsmanager:cdc-pipeline-dev-db-credentials:database}",
+  "database.server.name": "cdc-pipeline-dev-server",
+  "topic.prefix": "cdc",
+  "table.include.list": "public.users,public.products,public.orders",
+  "plugin.name": "pgoutput",
+  "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "key.converter.schemas.enable": "false",
+  "value.converter.schemas.enable": "false",
+  "heartbeat.interval.ms": "10000",
+  "heartbeat.action.query": "INSERT INTO public.debezium_heartbeat (id, ts) VALUES (1, NOW()) ON CONFLICT (id) DO UPDATE SET ts = EXCLUDED.ts;",
+  "slot.name": "debezium_slot_aws",
+  "publication.name": "dbz_publication",
+  "snapshot.mode": "initial",
+  "max.batch.size": "2048",
+  "max.queue.size": "8192",
+  "poll.interval.ms": "1000",
+  "schema.history.internal.kafka.bootstrap.servers": "${kafka.bootstrap.servers}",
+  "schema.history.internal.kafka.topic": "schema-changes.cdc_demo",
+  "schema.history.internal.store.only.captured.tables.ddl": "true"
+}
+

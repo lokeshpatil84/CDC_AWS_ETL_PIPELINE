@@ -17,12 +17,13 @@ data "aws_availability_zones" "available" {
 }
 
 module "vpc" {
-  source             = "./modules/vpc"
-  project_name       = var.project_name
-  environment        = var.environment
-  vpc_cidr           = var.vpc_cidr
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.availability_zones)
-  tags               = var.tags
+  source               = "./modules/vpc"
+  project_name         = var.project_name
+  environment          = var.environment
+  vpc_cidr             = var.vpc_cidr
+  availability_zones   = slice(data.aws_availability_zones.available.names, 0, var.availability_zones)
+  tags                 = var.tags
+  local_ip_cidr_blocks = var.local_ip_cidr_blocks
 }
 
 resource "aws_key_pair" "kafka" {
@@ -88,19 +89,20 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-${var.environment}-db-subnet"
-  subnet_ids = module.vpc.private_subnet_ids
+  subnet_ids = module.vpc.public_subnet_ids
   lifecycle {
     create_before_destroy = true
   }
 }
 
 resource "aws_db_instance" "postgres" {
-  identifier        = "${var.project_name}-${var.environment}-postgres"
-  engine            = "postgres"
-  engine_version    = "15.10"
-  instance_class    = var.db_instance_class
-  allocated_storage = 20
-  storage_encrypted = true
+  identifier          = "${var.project_name}-${var.environment}-postgres"
+  engine              = "postgres"
+  engine_version      = var.engine_version
+  instance_class      = var.db_instance_class
+  allocated_storage   = 20
+  storage_encrypted   = true
+  publicly_accessible = true
 
   db_name  = var.db_name
   username = var.db_username
@@ -113,6 +115,9 @@ resource "aws_db_instance" "postgres" {
   backup_retention_period = 0
   skip_final_snapshot     = true
   deletion_protection     = false
+
+  # Allow modification of these settings
+  apply_immediately = true
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-postgres"
