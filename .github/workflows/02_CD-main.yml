@@ -245,7 +245,7 @@ jobs:
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="project_name=${{ env.PROJECT_NAME }}"
           
-          terraform apply -auto_approve tfplan-bootstrap
+          terraform apply -auto-approve tfplan-bootstrap
           
           echo "Backend resources created"
 
@@ -468,7 +468,7 @@ jobs:
         run: |
           PLAN="${{ needs.terraform-plan.outputs.plan_id }}"
           echo "Applying plan: $PLAN"
-          terraform apply -auto_approve -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} "$PLAN"
+          terraform apply -auto-approve -lock-timeout=${{ env.TF_LOCK_TIMEOUT }} "$PLAN"
 
       - name: Capture Outputs
         id: outputs
@@ -549,7 +549,7 @@ jobs:
         working-directory: terraform
         run: |
           terraform destroy \
-            -auto_approve \
+            -auto-approve \
             -var="environment=${{ needs.pre-check.outputs.env }}" \
             -var="project_name=${{ env.PROJECT_NAME }}" \
             -lock-timeout=${{ env.TF_LOCK_TIMEOUT }}
@@ -611,4 +611,3 @@ jobs:
             echo "4. Select action: deploy"
             echo "5. Enter reason and run"
           fi
-
