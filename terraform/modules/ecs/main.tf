@@ -83,7 +83,7 @@ resource "aws_ecs_task_definition" "debezium" {
   container_definitions = jsonencode([
     {
       name  = "debezium-connect"
-      image = "debezium/connect:2.4"
+      image = "661722818226.dkr.ecr.ap-south-1.amazonaws.com/debezium-connect:2.4"
 
       portMappings = [{ containerPort = 8083, hostPort = 8083, protocol = "tcp" }]
 
@@ -128,10 +128,12 @@ resource "aws_ecs_service" "debezium" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  health_check_grace_period_seconds = 180
+
   network_configuration {
-    subnets          = var.subnet_ids
+    subnets          = var.public_subnet_ids
     security_groups  = [var.ecs_security_group_id]
-    assign_public_ip = false
+    assign_public_ip = true
   }
 
   load_balancer {
@@ -161,7 +163,7 @@ resource "aws_lb_target_group" "debezium" {
   target_type = "ip"
 
   health_check {
-    path                = "/connectors"
+    path                = "/"
     healthy_threshold   = 2
     unhealthy_threshold = 10
     timeout             = 30
@@ -188,5 +190,3 @@ resource "aws_cloudwatch_log_group" "ecs" {
     Name = "${var.project_name}-${var.environment}-ecs-logs"
   })
 }
-
-

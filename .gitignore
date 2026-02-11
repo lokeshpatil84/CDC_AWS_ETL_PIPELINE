@@ -51,3 +51,5 @@ tmp/
 *.key
 *.crt
 
+# Debezium connector config with credentials
+debezium/connector-config.json

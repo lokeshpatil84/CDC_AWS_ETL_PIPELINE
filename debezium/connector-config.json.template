@@ -2,11 +2,11 @@
   "name": "cdc-postgres-connector",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-    "database.hostname": "cdc-pipeline-dev-postgres.c3iy4ay6007a.ap-south-1.rds.amazonaws.com",
-    "database.port": "5432",
-    "database.user": "postgres",
-    "database.password": "postgres123!",
-    "database.dbname": "cdc_demo",
+    "database.hostname": "${DB_HOST}",
+    "database.port": "${DB_PORT}",
+    "database.user": "${DB_USER}",
+    "database.password": "${DB_PASSWORD}",
+    "database.dbname": "${DB_NAME}",
     "database.server.name": "postgres",
     "topic.prefix": "cdc",
     "table.include.list": "public.users,public.products,public.orders",
@@ -23,7 +23,7 @@
     "max.batch.size": "2048",
     "max.queue.size": "8192",
     "poll.interval.ms": "1000",
-    "schema.history.internal.kafka.bootstrap.servers": "10.0.0.24:9092",
+    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
     "schema.history.internal.kafka.topic": "schema-changes.cdc_demo",
     "schema.history.internal.store.only.captured.tables.ddl": "true"
   }

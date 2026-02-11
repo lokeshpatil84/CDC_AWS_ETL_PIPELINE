@@ -8,6 +8,7 @@ import os
 import sys
 from typing import Dict, List
 
+from awsglue.utils import getResolvedOptions
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
@@ -22,13 +23,21 @@ class KafkaToBronze:
     TOPICS = ["cdc.db.users", "cdc.db.products", "cdc.db.orders"]
 
     def __init__(self):
+        # Get arguments from Glue job parameters
+        args = getResolvedOptions(sys.argv, [
+            "S3_BUCKET",
+            "KAFKA_BROKERS",
+            "REGION",
+            "DATABASE_NAME"
+        ])
+        
         # From Terraform environment
-        self.aws_region = os.getenv("AWS_REGION", "ap-south-1")
-        self.s3_bucket = os.getenv("S3_BUCKET")  # From module.s3.data_bucket_name
-        self.database = os.getenv("GLUE_DATABASE", "cdc_pipeline")
+        self.aws_region = args.get("REGION", "ap-south-1")
+        self.s3_bucket = args["S3_BUCKET"]  # From module.s3.data_bucket_name
+        self.database = args.get("DATABASE_NAME", "cdc_pipeline")
 
         # Self-managed Kafka on EC2 (from module.kafka)
-        self.kafka_brokers = os.getenv("KAFKA_BROKERS")  # kafka-internal:9092
+        self.kafka_brokers = args["KAFKA_BROKERS"]  # kafka-internal:9092
         self.kafka_security_protocol = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
 
         # For SASL/SSL if enabled
@@ -92,7 +101,7 @@ class KafkaToBronze:
         options = {
             "kafka.bootstrap.servers": self.kafka_brokers,
             "subscribe": ",".join(self.TOPICS),
-            "startingOffsets": "latest",
+            "startingOffsets": "earliest",
             "failOnDataLoss": "false",
             "maxOffsetsPerTrigger": "50000",  # Batch size control
             "kafka.security.protocol": self.kafka_security_protocol,
@@ -329,10 +338,5 @@ class KafkaToBronze:
 
 
 if __name__ == "__main__":
-    required = ["S3_BUCKET", "KAFKA_BROKERS"]
-    missing = [r for r in required if not os.getenv(r)]
-    if missing:
-        raise ValueError(f"Missing required env vars: {missing}")
-
     job = KafkaToBronze()
     job.run()
