@@ -5,6 +5,8 @@
 resource "aws_s3_bucket" "data_lake" {
   bucket = "${var.project_name}-${var.environment}-data-lake"
 
+  force_destroy = var.force_destroy
+
   lifecycle {
     prevent_destroy = false
   }
@@ -162,4 +164,3 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
     }
   }
 }
-

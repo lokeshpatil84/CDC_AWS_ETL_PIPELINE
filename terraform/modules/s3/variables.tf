@@ -15,6 +15,12 @@ variable "lifecycle_expiration_days" {
   default     = 365
 }
 
+variable "force_destroy" {
+  type        = bool
+  description = "Force destroy bucket even if it has objects (required for versioned buckets)"
+  default     = false
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common tags"
@@ -24,4 +30,3 @@ variable "tags" {
     ManagedBy   = "terraform"
   }
 }
-

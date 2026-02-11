@@ -24,6 +24,7 @@ module "vpc" {
   availability_zones   = slice(data.aws_availability_zones.available.names, 0, var.availability_zones)
   tags                 = var.tags
   local_ip_cidr_blocks = var.local_ip_cidr_blocks
+  aws_region           = var.aws_region
 }
 
 resource "aws_key_pair" "kafka" {
@@ -40,6 +41,7 @@ module "s3" {
   project_name              = var.project_name
   environment               = var.environment
   lifecycle_expiration_days = var.s3_lifecycle_expiration_days
+  force_destroy             = var.s3_force_destroy
   tags                      = var.tags
 }
 
@@ -95,6 +97,37 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
+resource "aws_db_parameter_group" "postgres_cdc" {
+  name   = "${var.project_name}-${var.environment}-postgres-cdc-v2"
+  family = "postgres15"
+
+  # Enable logical replication for CDC
+  # Note: rds.logical_replication automatically sets wal_level = logical
+  parameter {
+    name         = "rds.logical_replication"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  parameter {
+    name         = "max_replication_slots"
+    value        = "10"
+    apply_method = "pending-reboot"
+  }
+
+  parameter {
+    name         = "max_wal_senders"
+    value        = "10"
+    apply_method = "pending-reboot"
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_db_instance" "postgres" {
   identifier          = "${var.project_name}-${var.environment}-postgres"
   engine              = "postgres"
@@ -111,6 +144,8 @@ resource "aws_db_instance" "postgres" {
 
   vpc_security_group_ids = [module.vpc.postgres_security_group_id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
+  # Use custom parameter group with logical replication enabled
+  parameter_group_name = aws_db_parameter_group.postgres_cdc.name
 
   backup_retention_period = 0
   skip_final_snapshot     = true
@@ -122,14 +157,20 @@ resource "aws_db_instance" "postgres" {
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-postgres"
   })
+
+  # Lifecycle to handle parameter group changes requiring replacement
+  lifecycle {
+    prevent_destroy = false
+  }
 }
 
 module "ecs" {
-  source                  = "./modules/ecs"
-  project_name            = var.project_name
-  environment             = var.environment
-  vpc_id                  = module.vpc.vpc_id
-  subnet_ids              = module.vpc.private_subnet_ids
+  source       = "./modules/ecs"
+  project_name = var.project_name
+  environment  = var.environment
+  vpc_id       = module.vpc.vpc_id
+  # Use only first private subnet to ensure NAT Gateway AZ alignment
+  subnet_ids              = [module.vpc.private_subnet_ids[0]]
   public_subnet_ids       = module.vpc.public_subnet_ids
   cpu                     = var.ecs_cpu
   memory                  = var.ecs_memory
@@ -188,4 +229,3 @@ resource "aws_cloudwatch_metric_alarm" "cost_alarm" {
   alarm_description   = "AWS estimated charges monitoring"
   alarm_actions       = [aws_sns_topic.alerts.arn]
 }
-

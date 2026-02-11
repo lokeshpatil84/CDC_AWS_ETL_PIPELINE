@@ -35,3 +35,8 @@ variable "local_ip_cidr_blocks" {
   default     = []
 }
 
+variable "aws_region" {
+  type        = string
+  description = "AWS region for VPC endpoints"
+  default     = "ap-south-1"
+}

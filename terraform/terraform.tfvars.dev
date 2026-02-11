@@ -8,3 +8,5 @@ public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFdS/3Gz2dEuseJSHaWyMFVGcJgqc8
 # Local IP CIDR blocks for PostgreSQL access (debugging)
 local_ip_cidr_blocks = ["167.103.3.96/32"]
 
+# ECS Configuration - Increased memory to prevent OOMKilled
+ecs_memory = 1024
