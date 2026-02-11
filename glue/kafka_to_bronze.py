@@ -24,13 +24,10 @@ class KafkaToBronze:
 
     def __init__(self):
         # Get arguments from Glue job parameters
-        args = getResolvedOptions(sys.argv, [
-            "S3_BUCKET",
-            "KAFKA_BROKERS",
-            "REGION",
-            "DATABASE_NAME"
-        ])
-        
+        args = getResolvedOptions(
+            sys.argv, ["S3_BUCKET", "KAFKA_BROKERS", "REGION", "DATABASE_NAME"]
+        )
+
         # From Terraform environment
         self.aws_region = args.get("REGION", "ap-south-1")
         self.s3_bucket = args["S3_BUCKET"]  # From module.s3.data_bucket_name

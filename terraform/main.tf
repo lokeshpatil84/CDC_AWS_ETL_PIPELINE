@@ -103,20 +103,20 @@ resource "aws_db_parameter_group" "postgres_cdc" {
   # Enable logical replication for CDC
   # Note: rds.logical_replication automatically sets wal_level = logical
   parameter {
-    name  = "rds.logical_replication"
-    value = "1"
+    name         = "rds.logical_replication"
+    value        = "1"
     apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "max_replication_slots"
-    value = "10"
+    name         = "max_replication_slots"
+    value        = "10"
     apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "max_wal_senders"
-    value = "10"
+    name         = "max_wal_senders"
+    value        = "10"
     apply_method = "pending-reboot"
   }
 
@@ -144,7 +144,7 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [module.vpc.postgres_security_group_id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
   # Use custom parameter group with logical replication enabled
-  parameter_group_name   = aws_db_parameter_group.postgres_cdc.name
+  parameter_group_name = aws_db_parameter_group.postgres_cdc.name
 
   backup_retention_period = 0
   skip_final_snapshot     = true
@@ -164,10 +164,10 @@ resource "aws_db_instance" "postgres" {
 }
 
 module "ecs" {
-  source                  = "./modules/ecs"
-  project_name            = var.project_name
-  environment             = var.environment
-  vpc_id                  = module.vpc.vpc_id
+  source       = "./modules/ecs"
+  project_name = var.project_name
+  environment  = var.environment
+  vpc_id       = module.vpc.vpc_id
   # Use only first private subnet to ensure NAT Gateway AZ alignment
   subnet_ids              = [module.vpc.private_subnet_ids[0]]
   public_subnet_ids       = module.vpc.public_subnet_ids
