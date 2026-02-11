@@ -41,6 +41,7 @@ module "s3" {
   project_name              = var.project_name
   environment               = var.environment
   lifecycle_expiration_days = var.s3_lifecycle_expiration_days
+  force_destroy             = var.s3_force_destroy
   tags                      = var.tags
 }
 

@@ -147,6 +147,12 @@ variable "s3_lifecycle_expiration_days" {
   default = 365
 }
 
+variable "s3_force_destroy" {
+  type        = bool
+  default     = false
+  description = "Force destroy S3 buckets even if they contain objects (required for versioned buckets during terraform destroy)"
+}
+
 variable "ssh_cidr_blocks" {
   type        = string
   default     = "0.0.0.0/0"
@@ -158,4 +164,3 @@ variable "local_ip_cidr_blocks" {
   default     = []
   description = "Local IP CIDR blocks to allow PostgreSQL access from (for debugging)"
 }
-
